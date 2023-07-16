@@ -6,50 +6,48 @@
 using Meta = dynapse::Meta;
 using MetaPtr = dynapse::MetaPtr;
 using MetaCenter = dynapse::MetaCenter;
-using MetaDescriptor = dynapse::MetaCenter::MetaDescriptor;
 
 class Foo {
  public:
   static void Register() {
     // clang-format off
-    MetaCenter::GetDefaultCenter()->Register(
-      "Foo",
-      {
-        .constructor = [](auto, auto) {
-          return Meta::FromObject(new Foo, [](void* ptr) { delete reinterpret_cast<Foo*>(ptr); });
+    MetaCenter::GetDefaultCenter()->Register({
+      .class_name = "Foo",
+      .constructor = [](auto) -> void* { return new Foo; },
+      .destructor = [](void* ptr) { delete reinterpret_cast<Foo*>(ptr); },
+      .member_props = {
+        {
+          "a", {
+            .getter = [](const MetaPtr& caller, auto) { return Meta::RefInt(&caller->As<Foo*>()->a); },
+          }
         },
-        .member_props = {
-          {
-            "a", {
-              .getter = [](const MetaPtr& caller, auto) { return Meta::RefInt(&caller->As<Foo*>()->a); },
-            }
-          },
-          {
-            "b", {
-              .getter = [](const MetaPtr& caller, auto) { return Meta::RefFloat(&caller->As<Foo*>()->b); },
-            }
-          },
-          {
-            "c", {
-              .getter = [](const MetaPtr& caller, auto) { return Meta::RefDouble(&caller->As<Foo*>()->c); },
-            }
-          },
-          {
-            "d", {
-              .getter = [](const MetaPtr& caller, auto) { return Meta::RefBool(&caller->As<Foo*>()->d); },
-            }
-          },
+        {
+          "b", {
+            .getter = [](const MetaPtr& caller, auto) { return Meta::RefFloat(&caller->As<Foo*>()->b); },
+          }
         },
-        .member_fns = {
-          {
-            "Print", [](const MetaPtr& caller, auto) -> MetaPtr {
-              caller->As<Foo*>()->Print();
-              return nullptr;
-            }
-          },
+        {
+          "c", {
+            .getter = [](const MetaPtr& caller, auto) { return Meta::RefDouble(&caller->As<Foo*>()->c); },
+          }
         },
-      }
+        {
+          "d", {
+            .getter = [](const MetaPtr& caller, auto) { return Meta::RefBool(&caller->As<Foo*>()->d); },
+          }
+        },
+      },
+      .member_fns = {
+        {
+          "Print", [](const MetaPtr& caller, auto) -> MetaPtr {
+            caller->As<Foo*>()->Print();
+            return nullptr;
+          }
+        },
+      },
+    }
     );
+    // clang-format on
   }
 
   static constexpr int kAValue = 10;

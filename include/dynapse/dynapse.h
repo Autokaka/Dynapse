@@ -17,9 +17,8 @@ enum class MetaType : unsigned char { kUnknown, kBool, kInt, kFloat, kDouble, kS
  * use dynapse, Meta is just enough.
  */
 class Meta;
-using WeakMeta = std::weak_ptr<Meta>;
 using MetaPtr = std::shared_ptr<Meta>;
-class Meta final {
+class Meta final : public std::enable_shared_from_this<Meta> {
  public:
   // Meta
   using Destructor = void (*)(void* ptr);
@@ -86,16 +85,17 @@ class Meta final {
 
   // function
   using Function = MetaPtr (*)(const MetaPtr& caller, const std::vector<MetaPtr>& args);
-  explicit Meta(Function call_as_function, const MetaPtr& caller = nullptr)
-      : ptr_(reinterpret_cast<void*>(call_as_function)), caller_(caller), type_(MetaType::kFunction) {}
-  static MetaPtr FromFunction(Function call_as_function, const MetaPtr& caller = nullptr) {
-    return std::make_shared<Meta>(call_as_function);
+  explicit Meta(Function call_as_function, MetaPtr caller = nullptr)
+      : ptr_(reinterpret_cast<void*>(call_as_function)), caller_(std::move(caller)), type_(MetaType::kFunction) {}
+  static MetaPtr RefFunction(Function call_as_function, const MetaPtr& caller = nullptr) {
+    return std::make_shared<Meta>(call_as_function, caller);
   }
   [[nodiscard]] bool IsFunction() const { return type_ == MetaType::kFunction; }
-  MetaPtr CallAsFunction(const std::vector<MetaPtr>& args = {}) {
+  MetaPtr CallAsFunction(const MetaPtr& caller = nullptr, const std::vector<MetaPtr>& args = {}) {
     auto* call_as_function = reinterpret_cast<Function>(ptr_);
-    return call_as_function(caller_.lock(), args);
+    return call_as_function(caller ? caller : caller_, args);
   }
+  MetaPtr CallAsFunction(const std::vector<MetaPtr>& args = {}) { return CallAsFunction(caller_, args); }
 
   // object
   using ObjectAccessor = MetaPtr (*)(const std::string& name, const MetaPtr& caller, const std::vector<MetaPtr>& args);
@@ -111,7 +111,7 @@ class Meta final {
   }
   [[nodiscard]] bool IsObject() const { return type_ == MetaType::kObject; }
   MetaPtr AccessObject(const std::string& name, const std::vector<MetaPtr>& args = {}) {
-    return accessor_(name, this->caller_.lock(), args);
+    return accessor_(name, shared_from_this(), args);
   }
 
  private:
@@ -123,11 +123,10 @@ class Meta final {
 
   ObjectAccessor accessor_ = nullptr;
   Destructor destructor_ = nullptr;
-  WeakMeta caller_;
+  MetaPtr caller_ = nullptr;
   void* ptr_ = nullptr;
   MetaType type_ = MetaType::kUnknown;
 };
-using WeakMeta = std::weak_ptr<Meta>;
 using MetaPtr = std::shared_ptr<Meta>;
 
 #ifndef DYNAPSE_CORE
@@ -141,75 +140,102 @@ using MetaPtr = std::shared_ptr<Meta>;
  * code to access a runtime Meta object.
  */
 class MetaCenter;
+using WeakMetaCenter = std::weak_ptr<MetaCenter>;
 using MetaCenterPtr = std::shared_ptr<MetaCenter>;
-class MetaCenter {
+class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
  public:
-  struct MetaDescriptor final {
-   public:
+  struct Descriptor final {
+    std::string path;
+    WeakMetaCenter center;
+
     bool is_static = false;
-    // function container
-    Meta::Function value = nullptr;
+    MetaPtr value = nullptr;
+    MetaPtr prototype = nullptr;
+
     // property container
     Meta::Function getter = nullptr;
     Meta::Function setter = nullptr;
   };
-  using MetaDescriptorMap = std::unordered_map<std::string, MetaDescriptor>;
-  struct ClassRegistry final {
-    Meta::Function constructor;
-    std::unordered_map<std::string, MetaDescriptor> member_props;
+  using DescriptorMap = std::unordered_map<std::string, Descriptor>;
+
+  struct Prototype final {
+    std::string class_name;
+    void* (*constructor)(const std::vector<MetaPtr>& args) = nullptr;
+    Meta::Destructor destructor = nullptr;
+    std::unordered_map<std::string, Descriptor> member_props;
     std::unordered_map<std::string, Meta::Function> member_fns;
-    std::unordered_map<std::string, MetaDescriptor> static_props;
+    std::unordered_map<std::string, Descriptor> static_props;
     std::unordered_map<std::string, Meta::Function> static_fns;
   };
+
   MetaCenter() = default;
   static std::shared_ptr<MetaCenter> GetDefaultCenter() {
     static auto default_center = std::make_shared<MetaCenter>();
     return default_center;
   }
 
-  void Register(const std::string& class_name, const ClassRegistry& registry) {
-    Register(class_name + ".constructor", registry.constructor);
+  void Register(const std::string& path, Descriptor static_prop_desc) {
+    static_prop_desc.path = path;
+    static_prop_desc.center = shared_from_this();
+    static_prop_desc.is_static = true;
+    static_prop_desc.value = nullptr;
+    meta_desc_map_[path] = static_prop_desc;
+  }
+  void Register(const std::string& path, const Meta::Function& function) {
+    Descriptor desc;
+    desc.path = path;
+    desc.center = shared_from_this();
+    desc.is_static = true;
+    desc.value = Meta::RefFunction(function);
+    meta_desc_map_[path] = desc;
+  }
+  void Register(const Prototype& prototype) {
+    const auto& class_name = prototype.class_name;
 
-    for (auto [prop_key, prop_meta_desc] : registry.member_props) {
-      // clang-format off
-      std::string path = class_name; path.append(".").append(prop_key);
-      // clang-format on
-      auto desc_ptr = std::make_shared<MetaDescriptor>(prop_meta_desc);
+    // register prototype
+    auto* proto_ptr = new Prototype(prototype);
+    auto proto = Meta::FromObject(proto_ptr, ReleasePrototype, AccessPrototype);
+    auto path = class_name + ".constructor";
+    meta_desc_map_[path] = Descriptor();
+    auto& desc = meta_desc_map_[path];
+    desc.path = path;
+    desc.center = shared_from_this();
+    desc.is_static = true;
+    desc.value = Meta::RefFunction(CreateObject, Meta::RefObject(&desc));
+    desc.prototype = proto;
+
+    // register member properties
+    for (auto [prop_key, prop_meta_desc] : prototype.member_props) {
+      prop_meta_desc.path.append(class_name).append(".").append(prop_key);
+      prop_meta_desc.center = shared_from_this();
       prop_meta_desc.is_static = false;
       prop_meta_desc.value = nullptr;
-      meta_desc_map_[path] = prop_meta_desc;
+      meta_desc_map_[prop_meta_desc.path] = prop_meta_desc;
     }
-    for (auto&& [prop_key, member_fn] : registry.member_fns) {
+
+    // register member functions
+    for (auto&& [prop_key, member_fn] : prototype.member_fns) {
       // clang-format off
       std::string path = class_name; path.append(".").append(prop_key);
       // clang-format on
       Register(path, member_fn);
     }
-    for (auto [prop_key, prop_meta_desc] : registry.static_props) {
+
+    // register static properties
+    for (auto&& [prop_key, prop_meta_desc] : prototype.static_props) {
       // clang-format off
       std::string path = class_name; path.append(".").append(prop_key);
       // clang-format on
-      prop_meta_desc.is_static = true;
-      prop_meta_desc.value = nullptr;
-      meta_desc_map_[path] = prop_meta_desc;
+      Register(path, prop_meta_desc);
     }
-    for (auto&& [prop_key, static_fn] : registry.static_fns) {
+
+    // register static functions
+    for (auto&& [prop_key, static_fn] : prototype.static_fns) {
       // clang-format off
       std::string path = class_name; path.append(".").append(prop_key);
       // clang-format on
       Register(path, static_fn);
     }
-  }
-
-  void Register(const std::string& path, MetaDescriptor static_prop_desc) {
-    static_prop_desc.is_static = true;
-    meta_desc_map_[path] = static_prop_desc;
-  }
-  void Register(const std::string& path, const Meta::Function& function) {
-    MetaDescriptor desc;
-    desc.is_static = true;
-    desc.value = function;
-    meta_desc_map_[path] = desc;
   }
 
   // runtime unified access method
@@ -219,20 +245,20 @@ class MetaCenter {
     }
     auto desc = meta_desc_map_[path];
     auto arg_count = args.size();
-    if ((desc.getter != nullptr) && arg_count == 0) {
+    if (desc.getter != nullptr && arg_count == 0) {
       return desc.getter(caller, args);
     }
-    if ((desc.setter != nullptr) && arg_count == 1) {
+    if (desc.setter != nullptr && arg_count == 1) {
       desc.setter(caller, args);
       return nullptr;
     }
-    if (desc.value != nullptr) {
-      return desc.value(caller, args);
+    if (desc.value != nullptr && desc.value->IsFunction()) {
+      return desc.value->CallAsFunction(caller, args);
     }
     return nullptr;
   }
 
-  std::optional<MetaDescriptor> GetDescriptorOf(const std::string& path) {
+  std::optional<Descriptor> GetDescriptorOf(const std::string& path) {
     if (!meta_desc_map_.contains(path)) {
       return std::nullopt;
     }
@@ -240,8 +266,33 @@ class MetaCenter {
   }
 
  private:
-  MetaDescriptorMap meta_desc_map_;
+  static MetaPtr AccessObject(const std::string& name, const MetaPtr& caller, const std::vector<MetaPtr>& args) {
+    auto* desc = caller->As<Descriptor*>();
+    auto center = desc->center.lock();
+    if (!center) {
+      return nullptr;
+    }
+    auto* proto = desc->prototype->As<Prototype*>();
+    return center->DynCall(proto->class_name + "." + name, desc->value, args);
+  }
+  static void ReleaseObject(void* ptr) { delete reinterpret_cast<Descriptor*>(ptr); }
+  static MetaPtr CreateObject(const MetaPtr& caller, const std::vector<MetaPtr>& args) {
+    auto* desc = caller->As<Descriptor*>();
+    auto* proto = desc->prototype->As<Prototype*>();
+    auto* object_desc = new Descriptor(*desc);
+    object_desc->value = Meta::FromObject(proto->constructor(args), proto->destructor, AccessObject);
+    return Meta::FromObject(object_desc, ReleaseObject, AccessObject);
+  }
+
+  static void ReleasePrototype(void* ptr) { delete reinterpret_cast<Prototype*>(ptr); }
+  static MetaPtr AccessPrototype(const std::string& name, const MetaPtr& caller, const std::vector<MetaPtr>& args) {
+    // TODO(Autokaka):
+    return nullptr;
+  }
+
+  DescriptorMap meta_desc_map_;
 };
+using WeakMetaCenter = std::weak_ptr<MetaCenter>;
 using MetaCenterPtr = std::shared_ptr<MetaCenter>;
 
 #endif
