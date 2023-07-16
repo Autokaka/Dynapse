@@ -165,6 +165,7 @@ class MetaCenter;
 using MetaCenterPtr = std::shared_ptr<MetaCenter>;
 class MetaCenter {
  public:
+  using MetaMap = std::unordered_map<std::string, MetaPtr>;
   struct ClassRegistry final {
     Meta::CallAsFunctionCallback ctor;
     std::unordered_map<std::string, MetaPtr> member_props;
@@ -218,21 +219,20 @@ class MetaCenter {
     if (meta == nullptr) {
       return nullptr;
     }
-    if (meta->IsNumber() || meta->IsString()) {
-      return meta;
-    }
     if (meta->IsFunction()) {
       return meta->CallAsFunction(args);
     }
-    if (meta->IsObject()) {
+    if (meta->IsNumber() || meta->IsString() || meta->IsObject()) {
       return meta;
     }
     // code will never reach here
     std::abort();
   }
 
+  [[nodiscard]] const MetaMap* GetMetaMap() const { return &meta_map_; }
+
  private:
-  std::unordered_map<std::string, MetaPtr> meta_map_;
+  MetaMap meta_map_;
 };
 using MetaCenterPtr = std::shared_ptr<MetaCenter>;
 
