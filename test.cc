@@ -6,23 +6,50 @@
 using Meta = dynapse::Meta;
 using MetaPtr = dynapse::MetaPtr;
 using MetaCenter = dynapse::MetaCenter;
+using MetaDescriptor = dynapse::MetaCenter::MetaDescriptor;
 
 class Foo {
  public:
   static void Register() {
-    MetaCenter::ClassRegistry registry;
-    registry.ctor = [](auto) -> MetaPtr {
-      return Meta::FromObject(new Foo, [](void* ptr) { delete reinterpret_cast<Foo*>(ptr); });
-    };
-    registry.member_props["a"] = Meta::FromInt(kAValue);
-    registry.member_props["b"] = Meta::FromFloat(kBValue);
-    registry.member_props["c"] = Meta::FromDouble(kCValue);
-    registry.member_props["d"] = Meta::FromBool(kDValue);
-    registry.member_fns["Print"] = [](const MetaPtr& args) -> MetaPtr {
-      args->As<Foo>()->Print();
-      return nullptr;
-    };
-    MetaCenter::GetDefaultCenter()->Register("Foo", registry);
+    // clang-format off
+    MetaCenter::GetDefaultCenter()->Register(
+      "Foo",
+      {
+        .constructor = [](auto, auto) {
+          return Meta::FromObject(new Foo, [](void* ptr) { delete reinterpret_cast<Foo*>(ptr); });
+        },
+        .member_props = {
+          {
+            "a", {
+              .getter = [](const MetaPtr& caller, auto) { return Meta::RefInt(&caller->As<Foo*>()->a); },
+            }
+          },
+          {
+            "b", {
+              .getter = [](const MetaPtr& caller, auto) { return Meta::RefFloat(&caller->As<Foo*>()->b); },
+            }
+          },
+          {
+            "c", {
+              .getter = [](const MetaPtr& caller, auto) { return Meta::RefDouble(&caller->As<Foo*>()->c); },
+            }
+          },
+          {
+            "d", {
+              .getter = [](const MetaPtr& caller, auto) { return Meta::RefBool(&caller->As<Foo*>()->d); },
+            }
+          },
+        },
+        .member_fns = {
+          {
+            "Print", [](const MetaPtr& caller, auto) -> MetaPtr {
+              caller->As<Foo*>()->Print();
+              return nullptr;
+            }
+          },
+        },
+      }
+    );
   }
 
   static constexpr int kAValue = 10;
@@ -60,13 +87,13 @@ void TestFoo() {
 
   std::cout << "> TestFoo property reflection" << std::endl;
   auto simple_class_a_meta = center->DynCall("Foo.a", simple_class_meta);
-  std::cout << "Foo.a? " << simple_class_a_meta->ToInt() << std::endl;
+  std::cout << "Foo.a? " << *simple_class_a_meta->As<int*>() << std::endl;
   auto simple_class_b_meta = center->DynCall("Foo.b", simple_class_meta);
-  std::cout << "Foo.b? " << simple_class_b_meta->ToFloat() << std::endl;
+  std::cout << "Foo.b? " << *simple_class_b_meta->As<float*>() << std::endl;
   auto simple_class_c_meta = center->DynCall("Foo.c", simple_class_meta);
-  std::cout << "Foo.c? " << simple_class_c_meta->ToDouble() << std::endl;
+  std::cout << "Foo.c? " << *simple_class_c_meta->As<double*>() << std::endl;
   auto simple_class_d_meta = center->DynCall("Foo.d", simple_class_meta);
-  std::cout << "Foo.d? " << simple_class_d_meta->ToBool() << std::endl;
+  std::cout << "Foo.d? " << *simple_class_d_meta->As<bool*>() << std::endl;
 }
 
 int main() {

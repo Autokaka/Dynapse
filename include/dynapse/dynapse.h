@@ -3,9 +3,13 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace dynapse {
+
+enum class MetaType : unsigned char { kUnknown, kBool, kInt, kFloat, kDouble, kString, kFunction, kObject };
 
 /**
  * Meta serves as the CORE functionality of dynapse,
@@ -13,142 +17,117 @@ namespace dynapse {
  * use dynapse, Meta is just enough.
  */
 class Meta;
+using WeakMeta = std::weak_ptr<Meta>;
 using MetaPtr = std::shared_ptr<Meta>;
 class Meta final {
  public:
-  static constexpr char kUnknownType = 0;
-  static constexpr char kBoolType = 1 << 0;
-  static constexpr char kIntType = 1 << 1;
-  static constexpr char kFloatType = 1 << 2;
-  static constexpr char kDoubleType = 1 << 3;
-  static constexpr char kStringType = 1 << 4;
-  static constexpr char kFunctionType = 1 << 5;
-  static constexpr char kObjectType = 1 << 6;
+  // Meta
+  using Destructor = void (*)(void* ptr);
 
-  // any
   explicit Meta() = default;
   Meta(const Meta&) = delete;
   Meta& operator=(const Meta&) = delete;
   Meta(Meta&&) = delete;
   Meta& operator=(Meta&&) = delete;
   ~Meta() {
-    if (release_ != nullptr) {
-      release_(ptr_);
+    if (destructor_ != nullptr) {
+      destructor_(ptr_);
     }
   }
 
-  bool Owned() { return release_ != nullptr; }
-  template <typename ClassType>
-  [[nodiscard]] ClassType* As() const {
-    return reinterpret_cast<ClassType*>(ptr_);
+  [[nodiscard]] bool Owned() const { return destructor_ != nullptr; }
+  template <typename PtrType>
+  [[nodiscard]] PtrType As() const {
+    return reinterpret_cast<PtrType>(ptr_);
   }
 
   // number
   [[nodiscard]] bool IsNumber() const {
-    auto type = kBoolType | kIntType | kFloatType | kDoubleType;
-    return (type_ & type) != 0;
+    // clang-format off
+    return type_ == MetaType::kBool
+        || type_ == MetaType::kInt
+        || type_ == MetaType::kFloat
+        || type_ == MetaType::kDouble;
+    // clang-format on
   }
 
-  explicit Meta(bool bool_value) : ptr_(new bool(bool_value)), type_(kBoolType), release_(ReleaseBool) {}
+  explicit Meta(bool bool_value) : ptr_(new bool(bool_value)), type_(MetaType::kBool), destructor_(ReleaseBool) {}
+  explicit Meta(bool* bool_ref) : ptr_(bool_ref), type_(MetaType::kBool) {}
   static MetaPtr FromBool(bool bool_value) { return std::make_shared<Meta>(bool_value); }
-  [[nodiscard]] bool IsBool() const { return (type_ & kBoolType) != 0; }
-  [[nodiscard]] bool ToBool() const { return *As<bool>(); }
+  static MetaPtr RefBool(bool* bool_ref) { return std::make_shared<Meta>(bool_ref); }
+  [[nodiscard]] bool IsBool() const { return type_ == MetaType::kBool; }
 
-  explicit Meta(int int_value) : ptr_(new int(int_value)), type_(kIntType), release_(ReleaseInt) {}
+  explicit Meta(int int_value) : ptr_(new int(int_value)), type_(MetaType::kInt), destructor_(ReleaseInt) {}
+  explicit Meta(int* int_ref) : ptr_(int_ref), type_(MetaType::kInt) {}
   static MetaPtr FromInt(int int_value) { return std::make_shared<Meta>(int_value); }
-  [[nodiscard]] bool IsInt() const { return (type_ & kIntType) != 0; }
-  [[nodiscard]] int ToInt() const { return *As<int>(); }
+  static MetaPtr RefInt(int* int_ref) { return std::make_shared<Meta>(int_ref); }
+  [[nodiscard]] bool IsInt() const { return type_ == MetaType::kInt; }
 
-  explicit Meta(float float_value) : ptr_(new float(float_value)), type_(kFloatType), release_(ReleaseFloat) {}
+  explicit Meta(float float_value) : ptr_(new float(float_value)), type_(MetaType::kFloat), destructor_(ReleaseFloat) {}
+  explicit Meta(float* float_ref) : ptr_(float_ref), type_(MetaType::kFloat) {}
   static MetaPtr FromFloat(float float_value) { return std::make_shared<Meta>(float_value); }
-  [[nodiscard]] bool IsFloat() const { return (type_ & kFloatType) != 0; }
-  [[nodiscard]] float ToFloat() const { return *As<float>(); }
+  static MetaPtr RefFloat(float* float_ref) { return std::make_shared<Meta>(float_ref); }
+  [[nodiscard]] bool IsFloat() const { return type_ == MetaType::kFloat; }
 
-  explicit Meta(double double_value) : ptr_(new double(double_value)), type_(kDoubleType), release_(ReleaseDouble) {}
+  explicit Meta(double double_value)
+      : ptr_(new double(double_value)), type_(MetaType::kDouble), destructor_(ReleaseDouble) {}
+  explicit Meta(double* double_ref) : ptr_(double_ref), type_(MetaType::kDouble) {}
   static MetaPtr FromDouble(double double_value) { return std::make_shared<Meta>(double_value); }
-  [[nodiscard]] bool IsDouble() const { return (type_ & kDoubleType) != 0; }
-  [[nodiscard]] double ToDouble() const { return *As<double>(); }
+  static MetaPtr RefDouble(double* double_ref) { return std::make_shared<Meta>(double_ref); }
+  [[nodiscard]] bool IsDouble() const { return type_ == MetaType::kDouble; }
 
   // string
   explicit Meta(const std::string& string_value)
-      : ptr_(new std::string(string_value)), type_(kStringType), release_(ReleaseString) {}
+      : ptr_(new std::string(string_value)), type_(MetaType::kString), destructor_(ReleaseString) {}
+  explicit Meta(std::string* string_ref) : ptr_(string_ref), type_(MetaType::kString) {}
   static MetaPtr FromString(const std::string& string_value) { return std::make_shared<Meta>(string_value); }
-  [[nodiscard]] bool IsString() const { return (type_ & kStringType) != 0; }
-  [[nodiscard]] std::string ToString() const { return *As<std::string>(); }
+  static MetaPtr RefString(std::string* string_ref) { return std::make_shared<Meta>(string_ref); }
+  [[nodiscard]] bool IsString() const { return type_ == MetaType::kString; }
 
   // function
-  using CallAsFunctionCallback = MetaPtr (*)(const MetaPtr& args);
-  explicit Meta(CallAsFunctionCallback call_as_function)
-      : ptr_(reinterpret_cast<void*>(call_as_function)), type_(kFunctionType) {}
-  static MetaPtr FromFunction(CallAsFunctionCallback call_as_function) {
+  using Function = MetaPtr (*)(const MetaPtr& caller, const std::vector<MetaPtr>& args);
+  explicit Meta(Function call_as_function, const MetaPtr& caller = nullptr)
+      : ptr_(reinterpret_cast<void*>(call_as_function)), caller_(caller), type_(MetaType::kFunction) {}
+  static MetaPtr FromFunction(Function call_as_function, const MetaPtr& caller = nullptr) {
     return std::make_shared<Meta>(call_as_function);
   }
-  [[nodiscard]] bool IsFunction() const { return (type_ & kFunctionType) != 0; }
-  MetaPtr CallAsFunction(const MetaPtr& args = nullptr) {
-    auto* call_as_function = reinterpret_cast<CallAsFunctionCallback>(ptr_);
-    return call_as_function(args);
+  [[nodiscard]] bool IsFunction() const { return type_ == MetaType::kFunction; }
+  MetaPtr CallAsFunction(const std::vector<MetaPtr>& args = {}) {
+    auto* call_as_function = reinterpret_cast<Function>(ptr_);
+    return call_as_function(caller_.lock(), args);
   }
 
   // object
-  using GetObjectPropertyCallback = MetaPtr (*)(void* object_ref, const MetaPtr& property_key);
-  using SetObjectPropertyCallback = void (*)(void* object_ref, const MetaPtr& property_key, const MetaPtr& value);
-  explicit Meta(void* object_ptr,
-                void (*release)(void* ptr),
-                GetObjectPropertyCallback property_getter,
-                SetObjectPropertyCallback property_setter)
-      : type_(kObjectType),
-        ptr_(object_ptr),
-        release_(release),
-        get_object_property_(property_getter),
-        set_object_property_(property_setter) {}
-  static MetaPtr FromObject(void* object_ptr,
-                            void (*release)(void* ptr),
-                            GetObjectPropertyCallback property_getter = nullptr,
-                            SetObjectPropertyCallback property_setter = nullptr) {
-    return std::make_shared<Meta>(object_ptr, release, property_getter, property_setter);
+  using ObjectAccessor = MetaPtr (*)(const std::string& name, const MetaPtr& caller, const std::vector<MetaPtr>& args);
+  explicit Meta(void* object_ptr, Destructor dtor, ObjectAccessor accessor = nullptr)
+      : type_(MetaType::kObject), ptr_(object_ptr), destructor_(dtor), accessor_(accessor) {}
+  explicit Meta(void* object_ref, ObjectAccessor accessor = nullptr)
+      : type_(MetaType::kObject), ptr_(object_ref), accessor_(accessor) {}
+  static MetaPtr FromObject(void* object_ptr, Destructor dtor, ObjectAccessor accessor = nullptr) {
+    return std::make_shared<Meta>(object_ptr, dtor, accessor);
   }
-  explicit Meta(void* object_ref, GetObjectPropertyCallback property_getter, SetObjectPropertyCallback property_setter)
-      : type_(kObjectType),
-        ptr_(object_ref),
-        get_object_property_(property_getter),
-        set_object_property_(property_setter) {}
-  static MetaPtr FromObject(void* object_ref,
-                            GetObjectPropertyCallback property_getter = nullptr,
-                            SetObjectPropertyCallback property_setter = nullptr) {
-    return std::make_shared<Meta>(object_ref, property_getter, property_setter);
+  static MetaPtr RefObject(void* object_ref, ObjectAccessor accessor = nullptr) {
+    return std::make_shared<Meta>(object_ref, accessor);
   }
-  [[nodiscard]] bool IsObject() const { return (type_ & kObjectType) != 0; }
-  MetaPtr GetObjectProperty(const std::string& property_key) {
-    if (get_object_property_ != nullptr) {
-      return get_object_property_(ptr_, Meta::FromString(property_key));
-    }
-    return nullptr;
+  [[nodiscard]] bool IsObject() const { return type_ == MetaType::kObject; }
+  MetaPtr AccessObject(const std::string& name, const std::vector<MetaPtr>& args = {}) {
+    return accessor_(name, this->caller_.lock(), args);
   }
-  void SetObjectProperty(const std::string& property_key, const MetaPtr& value) {
-    if (set_object_property_ != nullptr) {
-      set_object_property_(ptr_, Meta::FromString(property_key), value);
-    }
-  }
-  MetaPtr GetObjectProperty(int index) { return get_object_property_(ptr_, Meta::FromInt(index)); }
-  void SetObjectProperty(int index, const MetaPtr& value) { set_object_property_(ptr_, Meta::FromInt(index), value); }
 
  private:
-  // any
-  void (*release_)(void* ptr);
-
   static void ReleaseBool(void* ptr) { delete reinterpret_cast<bool*>(ptr); }
   static void ReleaseInt(void* ptr) { delete reinterpret_cast<int*>(ptr); }
   static void ReleaseFloat(void* ptr) { delete reinterpret_cast<float*>(ptr); }
   static void ReleaseDouble(void* ptr) { delete reinterpret_cast<double*>(ptr); }
   static void ReleaseString(void* ptr) { delete reinterpret_cast<std::string*>(ptr); }
 
-  // object
-  GetObjectPropertyCallback get_object_property_;
-  SetObjectPropertyCallback set_object_property_;
-
-  const char type_ = kUnknownType;
+  ObjectAccessor accessor_ = nullptr;
+  Destructor destructor_ = nullptr;
+  WeakMeta caller_;
   void* ptr_ = nullptr;
+  MetaType type_ = MetaType::kUnknown;
 };
+using WeakMeta = std::weak_ptr<Meta>;
 using MetaPtr = std::shared_ptr<Meta>;
 
 #ifndef DYNAPSE_CORE
@@ -165,28 +144,40 @@ class MetaCenter;
 using MetaCenterPtr = std::shared_ptr<MetaCenter>;
 class MetaCenter {
  public:
-  using MetaMap = std::unordered_map<std::string, MetaPtr>;
+  struct MetaDescriptor final {
+   public:
+    bool is_static = false;
+    // function container
+    Meta::Function value = nullptr;
+    // property container
+    Meta::Function getter = nullptr;
+    Meta::Function setter = nullptr;
+  };
+  using MetaDescriptorMap = std::unordered_map<std::string, MetaDescriptor>;
   struct ClassRegistry final {
-    Meta::CallAsFunctionCallback ctor;
-    std::unordered_map<std::string, MetaPtr> member_props;
-    std::unordered_map<std::string, Meta::CallAsFunctionCallback> member_fns;
-    std::unordered_map<std::string, MetaPtr> static_props;
-    std::unordered_map<std::string, Meta::CallAsFunctionCallback> static_fns;
+    Meta::Function constructor;
+    std::unordered_map<std::string, MetaDescriptor> member_props;
+    std::unordered_map<std::string, Meta::Function> member_fns;
+    std::unordered_map<std::string, MetaDescriptor> static_props;
+    std::unordered_map<std::string, Meta::Function> static_fns;
   };
   MetaCenter() = default;
-
   static std::shared_ptr<MetaCenter> GetDefaultCenter() {
     static auto default_center = std::make_shared<MetaCenter>();
     return default_center;
   }
 
   void Register(const std::string& class_name, const ClassRegistry& registry) {
-    meta_map_[class_name + ".constructor"] = Meta::FromFunction(registry.ctor);
-    for (auto&& [prop_key, prop_meta] : registry.member_props) {
+    Register(class_name + ".constructor", registry.constructor);
+
+    for (auto [prop_key, prop_meta_desc] : registry.member_props) {
       // clang-format off
       std::string path = class_name; path.append(".").append(prop_key);
       // clang-format on
-      Register(path, prop_meta);
+      auto desc_ptr = std::make_shared<MetaDescriptor>(prop_meta_desc);
+      prop_meta_desc.is_static = false;
+      prop_meta_desc.value = nullptr;
+      meta_desc_map_[path] = prop_meta_desc;
     }
     for (auto&& [prop_key, member_fn] : registry.member_fns) {
       // clang-format off
@@ -194,11 +185,13 @@ class MetaCenter {
       // clang-format on
       Register(path, member_fn);
     }
-    for (auto&& [prop_key, prop_meta] : registry.static_props) {
+    for (auto [prop_key, prop_meta_desc] : registry.static_props) {
       // clang-format off
       std::string path = class_name; path.append(".").append(prop_key);
       // clang-format on
-      Register(path, prop_meta);
+      prop_meta_desc.is_static = true;
+      prop_meta_desc.value = nullptr;
+      meta_desc_map_[path] = prop_meta_desc;
     }
     for (auto&& [prop_key, static_fn] : registry.static_fns) {
       // clang-format off
@@ -208,31 +201,46 @@ class MetaCenter {
     }
   }
 
-  void Register(const std::string& path, const MetaPtr& static_prop) { meta_map_[path] = static_prop; }
-  void Register(const std::string& path, const Meta::CallAsFunctionCallback& function) {
-    meta_map_[path] = Meta::FromFunction(function);
+  void Register(const std::string& path, MetaDescriptor static_prop_desc) {
+    static_prop_desc.is_static = true;
+    meta_desc_map_[path] = static_prop_desc;
+  }
+  void Register(const std::string& path, const Meta::Function& function) {
+    MetaDescriptor desc;
+    desc.is_static = true;
+    desc.value = function;
+    meta_desc_map_[path] = desc;
   }
 
   // runtime unified access method
-  MetaPtr DynCall(const std::string& path, const MetaPtr& args = nullptr) {
-    auto meta = meta_map_[path];
-    if (meta == nullptr) {
+  MetaPtr DynCall(const std::string& path, const MetaPtr& caller = nullptr, const std::vector<MetaPtr>& args = {}) {
+    if (!meta_desc_map_.contains(path)) {
       return nullptr;
     }
-    if (meta->IsFunction()) {
-      return meta->CallAsFunction(args);
+    auto desc = meta_desc_map_[path];
+    auto arg_count = args.size();
+    if ((desc.getter != nullptr) && arg_count == 0) {
+      return desc.getter(caller, args);
     }
-    if (meta->IsNumber() || meta->IsString() || meta->IsObject()) {
-      return meta;
+    if ((desc.setter != nullptr) && arg_count == 1) {
+      desc.setter(caller, args);
+      return nullptr;
     }
-    // code will never reach here
-    std::abort();
+    if (desc.value != nullptr) {
+      return desc.value(caller, args);
+    }
+    return nullptr;
   }
 
-  [[nodiscard]] const MetaMap* GetMetaMap() const { return &meta_map_; }
+  std::optional<MetaDescriptor> GetDescriptorOf(const std::string& path) {
+    if (!meta_desc_map_.contains(path)) {
+      return std::nullopt;
+    }
+    return meta_desc_map_[path];
+  }
 
  private:
-  MetaMap meta_map_;
+  MetaDescriptorMap meta_desc_map_;
 };
 using MetaCenterPtr = std::shared_ptr<MetaCenter>;
 
