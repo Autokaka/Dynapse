@@ -29,8 +29,8 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   using Function = MetaPtr (*)(const MetaPtr& caller, const std::vector<MetaPtr>& args);
   using FunctionMap = std::unordered_map<std::string, Function>;
   struct Property final {
+    bool readonly = false;
     Function get = nullptr;
-    Function set = nullptr;
   };
   using PropertyMap = std::unordered_map<std::string, Property>;
   struct Prototype final {
@@ -45,34 +45,19 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   using WeakPrototype = std::weak_ptr<Prototype>;
   using PrototypePtr = std::shared_ptr<Prototype>;
 
-  static bool Access(const std::string& name,
-                     const MetaPtr& caller,
-                     const std::vector<MetaPtr>& args,
-                     const PropertyMap& property_map,
-                     MetaPtr* result) {
+  static bool Access(const std::string& name, const MetaPtr& caller, const PropertyMap& property_map, MetaPtr* result) {
     // NOLINTNEXTLINE
     for (auto&& [key, prop] : property_map) {
       if (key != name) {
         continue;
       }
-      auto args_count = args.size();
-      if (prop.get != nullptr && args_count == 0) {
-        *result = prop.get(caller, args);
-        return true;
-      }
-      if (prop.set != nullptr && args_count == 1) {
-        *result = prop.set(caller, args);
-        return true;
-      }
+      *result = prop.get != nullptr ? prop.get(caller, {}) : nullptr;
+      return true;
     }
     return false;
   }
 
-  static bool Access(const std::string& name,
-                     const MetaPtr& caller,
-                     const std::vector<MetaPtr>& args,
-                     const FunctionMap& function_map,
-                     MetaPtr* result) {
+  static bool Access(const std::string& name, const MetaPtr& caller, const FunctionMap& function_map, MetaPtr* result) {
     // NOLINTNEXTLINE
     for (auto&& [key, function] : function_map) {
       if (key == name) {
@@ -167,22 +152,22 @@ class Meta final : public std::enable_shared_from_this<Meta> {
     return std::make_shared<Meta>(object_ref, prototype);
   }
   [[nodiscard]] bool IsObject() const { return type_ == MetaType::kObject; }
-  MetaPtr Access(const std::string& name, const std::vector<MetaPtr>& args = {}) {
+  MetaPtr Access(const std::string& name) {
     auto proto = prototype_.lock();
     if (!proto) {
       return nullptr;
     }
     MetaPtr result = nullptr;
-    if (Access(name, shared_from_this(), args, proto->member_property_map, &result)) {
+    if (Access(name, shared_from_this(), proto->member_property_map, &result)) {
       return result;
     }
-    if (Access(name, shared_from_this(), args, proto->member_function_map, &result)) {
+    if (Access(name, shared_from_this(), proto->member_function_map, &result)) {
       return result;
     }
-    if (Access(name, nullptr, args, proto->static_function_map, &result)) {
+    if (Access(name, nullptr, proto->static_function_map, &result)) {
       return result;
     }
-    if (Access(name, nullptr, args, proto->static_property_map, &result)) {
+    if (Access(name, nullptr, proto->static_property_map, &result)) {
       return result;
     }
     return result;
@@ -198,8 +183,8 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   const WeakPrototype prototype_;
   const MetaType type_ = MetaType::kUnknown;
   const MetaPtr caller_;
-  void* ptr_ = nullptr;
   const Destructor destructor_ = nullptr;
+  void* ptr_ = nullptr;
 };
 
 /**
@@ -241,10 +226,10 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
       }
     }
     MetaPtr result = nullptr;
-    if (Meta::Access(path, caller, args, property_map_, &result)) {
+    if (Meta::Access(path, caller, property_map_, &result)) {
       return result;
     }
-    if (Meta::Access(path, caller, args, function_map_, &result)) {
+    if (Meta::Access(path, caller, function_map_, &result)) {
       return result;
     }
     return result;
