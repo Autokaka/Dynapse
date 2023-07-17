@@ -185,6 +185,8 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   void* ptr_ = nullptr;
 };
 
+#ifndef DYNAPSE_CORE
+
 /**
  * MetaCenter is an EXTRA component of dynapse that
  * helps you automatically pregenerate intermmediate
@@ -266,5 +268,7 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
   WeakPrototypeMap constructor_map_;
   PrototypeMap prototype_map_;
 };
+
+#endif  // DYNAPSE_CORE
 
 }  // namespace dynapse
