@@ -16,7 +16,7 @@ The libdynapse consists of:
 #include <iostream>
 
 void SayHelloToWorld() {
-	std::cout << "Hello, World!" << std::endl;
+  std::cout << "Hello, World!" << std::endl;
 }
 
 int main() {
