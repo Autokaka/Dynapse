@@ -2,16 +2,12 @@
 
 #pragma once
 
-#include <algorithm>
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace dynapse {
-
-enum class MetaType : unsigned char { kUnknown, kBool, kInt, kFloat, kDouble, kString, kFunction, kObject };
 
 /**
  * Meta serves as the CORE functionality of dynapse,
@@ -23,6 +19,8 @@ using MetaPtr = std::shared_ptr<Meta>;
 class Meta final : public std::enable_shared_from_this<Meta> {
  public:
   // Meta
+
+  enum class Type : unsigned char { kUnknown, kBool, kInt, kFloat, kDouble, kString, kFunction, kObject };
 
   using Constructor = void* (*)(const std::vector<MetaPtr>& args);
   using Destructor = void (*)(void* ptr);
@@ -88,53 +86,53 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   // number
   [[nodiscard]] bool IsNumber() const {
     // clang-format off
-    return type_ == MetaType::kBool
-        || type_ == MetaType::kInt
-        || type_ == MetaType::kFloat
-        || type_ == MetaType::kDouble;
+    return type_ == Type::kBool
+        || type_ == Type::kInt
+        || type_ == Type::kFloat
+        || type_ == Type::kDouble;
     // clang-format on
   }
 
-  explicit Meta(bool bool_value) : ptr_(new bool(bool_value)), type_(MetaType::kBool), destructor_(ReleaseBool) {}
-  explicit Meta(bool* bool_ref) : ptr_(bool_ref), type_(MetaType::kBool) {}
+  explicit Meta(bool bool_value) : ptr_(new bool(bool_value)), type_(Type::kBool), destructor_(ReleaseBool) {}
+  explicit Meta(bool* bool_ref) : ptr_(bool_ref), type_(Type::kBool) {}
   static MetaPtr FromBool(bool bool_value) { return std::make_shared<Meta>(bool_value); }
   static MetaPtr RefBool(bool* bool_ref) { return std::make_shared<Meta>(bool_ref); }
-  [[nodiscard]] bool IsBool() const { return type_ == MetaType::kBool; }
+  [[nodiscard]] bool IsBool() const { return type_ == Type::kBool; }
 
-  explicit Meta(int int_value) : ptr_(new int(int_value)), type_(MetaType::kInt), destructor_(ReleaseInt) {}
-  explicit Meta(int* int_ref) : ptr_(int_ref), type_(MetaType::kInt) {}
+  explicit Meta(int int_value) : ptr_(new int(int_value)), type_(Type::kInt), destructor_(ReleaseInt) {}
+  explicit Meta(int* int_ref) : ptr_(int_ref), type_(Type::kInt) {}
   static MetaPtr FromInt(int int_value) { return std::make_shared<Meta>(int_value); }
   static MetaPtr RefInt(int* int_ref) { return std::make_shared<Meta>(int_ref); }
-  [[nodiscard]] bool IsInt() const { return type_ == MetaType::kInt; }
+  [[nodiscard]] bool IsInt() const { return type_ == Type::kInt; }
 
-  explicit Meta(float float_value) : ptr_(new float(float_value)), type_(MetaType::kFloat), destructor_(ReleaseFloat) {}
-  explicit Meta(float* float_ref) : ptr_(float_ref), type_(MetaType::kFloat) {}
+  explicit Meta(float float_value) : ptr_(new float(float_value)), type_(Type::kFloat), destructor_(ReleaseFloat) {}
+  explicit Meta(float* float_ref) : ptr_(float_ref), type_(Type::kFloat) {}
   static MetaPtr FromFloat(float float_value) { return std::make_shared<Meta>(float_value); }
   static MetaPtr RefFloat(float* float_ref) { return std::make_shared<Meta>(float_ref); }
-  [[nodiscard]] bool IsFloat() const { return type_ == MetaType::kFloat; }
+  [[nodiscard]] bool IsFloat() const { return type_ == Type::kFloat; }
 
   explicit Meta(double double_value)
-      : ptr_(new double(double_value)), type_(MetaType::kDouble), destructor_(ReleaseDouble) {}
-  explicit Meta(double* double_ref) : ptr_(double_ref), type_(MetaType::kDouble) {}
+      : ptr_(new double(double_value)), type_(Type::kDouble), destructor_(ReleaseDouble) {}
+  explicit Meta(double* double_ref) : ptr_(double_ref), type_(Type::kDouble) {}
   static MetaPtr FromDouble(double double_value) { return std::make_shared<Meta>(double_value); }
   static MetaPtr RefDouble(double* double_ref) { return std::make_shared<Meta>(double_ref); }
-  [[nodiscard]] bool IsDouble() const { return type_ == MetaType::kDouble; }
+  [[nodiscard]] bool IsDouble() const { return type_ == Type::kDouble; }
 
   // string
   explicit Meta(const std::string& string_value)
-      : ptr_(new std::string(string_value)), type_(MetaType::kString), destructor_(ReleaseString) {}
-  explicit Meta(std::string* string_ref) : ptr_(string_ref), type_(MetaType::kString) {}
+      : ptr_(new std::string(string_value)), type_(Type::kString), destructor_(ReleaseString) {}
+  explicit Meta(std::string* string_ref) : ptr_(string_ref), type_(Type::kString) {}
   static MetaPtr FromString(const std::string& string_value) { return std::make_shared<Meta>(string_value); }
   static MetaPtr RefString(std::string* string_ref) { return std::make_shared<Meta>(string_ref); }
-  [[nodiscard]] bool IsString() const { return type_ == MetaType::kString; }
+  [[nodiscard]] bool IsString() const { return type_ == Type::kString; }
 
   // function
   explicit Meta(Function call_as_function, MetaPtr caller = nullptr)
-      : ptr_(reinterpret_cast<void*>(call_as_function)), caller_(std::move(caller)), type_(MetaType::kFunction) {}
+      : ptr_(reinterpret_cast<void*>(call_as_function)), caller_(std::move(caller)), type_(Type::kFunction) {}
   static MetaPtr RefFunction(Function call_as_function, const MetaPtr& caller = nullptr) {
     return std::make_shared<Meta>(call_as_function, caller);
   }
-  [[nodiscard]] bool IsFunction() const { return type_ == MetaType::kFunction; }
+  [[nodiscard]] bool IsFunction() const { return type_ == Type::kFunction; }
   MetaPtr CallAsFunction(const std::vector<MetaPtr>& args = {}) {
     auto* call_as_function = reinterpret_cast<Function>(ptr_);
     return call_as_function(caller_, args);
@@ -142,16 +140,16 @@ class Meta final : public std::enable_shared_from_this<Meta> {
 
   // object
   explicit Meta(void* object_ptr, Destructor dtor, const PrototypePtr& prototype = nullptr)
-      : type_(MetaType::kObject), ptr_(object_ptr), destructor_(dtor), prototype_(prototype) {}
+      : type_(Type::kObject), ptr_(object_ptr), destructor_(dtor), prototype_(prototype) {}
   explicit Meta(void* object_ref, const PrototypePtr& prototype = nullptr)
-      : type_(MetaType::kObject), ptr_(object_ref), prototype_(prototype) {}
+      : type_(Type::kObject), ptr_(object_ref), prototype_(prototype) {}
   static MetaPtr FromObject(void* object_ptr, Destructor dtor, const PrototypePtr& prototype = nullptr) {
     return std::make_shared<Meta>(object_ptr, dtor, prototype);
   }
   static MetaPtr RefObject(void* object_ref, const PrototypePtr& prototype = nullptr) {
     return std::make_shared<Meta>(object_ref, prototype);
   }
-  [[nodiscard]] bool IsObject() const { return type_ == MetaType::kObject; }
+  [[nodiscard]] bool IsObject() const { return type_ == Type::kObject; }
   MetaPtr Access(const std::string& name) {
     auto proto = prototype_.lock();
     if (!proto) {
@@ -181,7 +179,7 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   static void ReleaseString(void* ptr) { delete reinterpret_cast<std::string*>(ptr); }
 
   const WeakPrototype prototype_;
-  const MetaType type_ = MetaType::kUnknown;
+  const Type type_ = Type::kUnknown;
   const MetaPtr caller_;
   const Destructor destructor_ = nullptr;
   void* ptr_ = nullptr;
