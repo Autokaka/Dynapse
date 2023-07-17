@@ -20,7 +20,7 @@ void SayHelloToWorld() {
 }
 
 int main() {
-	// compile-time register
+  // compile-time register
   auto center = dynapse::MetaCenter::GetDefaultCenter();
   center->Register("SayHelloToWorld", [](auto, auto) -> dynapse::MetaPtr {
     SayHelloToWorld();
