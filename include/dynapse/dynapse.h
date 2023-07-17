@@ -193,7 +193,6 @@ class Meta final : public std::enable_shared_from_this<Meta> {
  * code to access a runtime Meta object.
  */
 class MetaCenter;
-using WeakMetaCenter = std::weak_ptr<MetaCenter>;
 using MetaCenterPtr = std::shared_ptr<MetaCenter>;
 class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
  public:
