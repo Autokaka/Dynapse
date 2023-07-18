@@ -31,9 +31,13 @@ class Meta final : public std::enable_shared_from_this<Meta> {
     Function get = nullptr;
   };
   using PropertyMap = std::unordered_map<std::string, Property>;
-  struct Prototype final {
+  struct Prototype;
+  using WeakPrototype = std::weak_ptr<Prototype>;
+  using PrototypePtr = std::shared_ptr<Prototype>;
+  struct Prototype {
     std::string class_name;
     std::string parent_class_name;
+    WeakPrototype parent;
     Constructor constructor = nullptr;
     Destructor destructor = nullptr;
     PropertyMap static_property_map;
@@ -41,8 +45,6 @@ class Meta final : public std::enable_shared_from_this<Meta> {
     PropertyMap member_property_map;
     FunctionMap member_function_map;
   };
-  using WeakPrototype = std::weak_ptr<Prototype>;
-  using PrototypePtr = std::shared_ptr<Prototype>;
 
   static bool Access(const std::string& name, const MetaPtr& caller, const PropertyMap& property_map, MetaPtr* result) {
     // NOLINTNEXTLINE
@@ -147,27 +149,31 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   static MetaPtr RefObject(void* object_ref) { return std::make_shared<Meta>(object_ref); }
   [[nodiscard]] bool IsObject() const { return type_ == Type::kObject; }
   MetaPtr Access(const std::string& name) {
-    auto proto = prototype.lock();
-    if (!proto) {
-      return nullptr;
-    }
     MetaPtr result = nullptr;
-    if (Access(name, shared_from_this(), proto->member_property_map, &result)) {
-      return result;
-    }
-    if (Access(name, shared_from_this(), proto->member_function_map, &result)) {
-      return result;
-    }
-    if (Access(name, nullptr, proto->static_function_map, &result)) {
-      return result;
-    }
-    if (Access(name, nullptr, proto->static_property_map, &result)) {
-      return result;
-    }
+    Access(name, prototype.lock(), &result);
     return result;
   }
 
  private:
+  bool Access(const std::string& name, const PrototypePtr& prototype, MetaPtr* result) {
+    if (!prototype) {
+      return false;
+    }
+    if (Access(name, shared_from_this(), prototype->member_property_map, result)) {
+      return true;
+    }
+    if (Access(name, shared_from_this(), prototype->member_function_map, result)) {
+      return true;
+    }
+    if (Access(name, nullptr, prototype->static_function_map, result)) {
+      return true;
+    }
+    if (Access(name, nullptr, prototype->static_property_map, result)) {
+      return true;
+    }
+    return Access(name, prototype->parent.lock(), result);
+  }
+
   static void ReleaseBool(void* ptr) { delete reinterpret_cast<bool*>(ptr); }
   static void ReleaseInt(void* ptr) { delete reinterpret_cast<int*>(ptr); }
   static void ReleaseFloat(void* ptr) { delete reinterpret_cast<float*>(ptr); }
@@ -211,6 +217,7 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
     auto proto = std::make_shared<Meta::Prototype>(prototype);
     constructor_map_[class_name + ".constructor"] = proto;
     prototype_map_[class_name] = proto;
+    LinkPrototypes();
   }
 
   MetaPtr Access(const std::string& path, const MetaPtr& caller = nullptr, const std::vector<MetaPtr>& args = {}) {
@@ -248,6 +255,18 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
     return object;
   }
 
+  void LinkPrototype(const Meta::PrototypePtr& prototype) {
+    auto parent = GetPrototypeOf(prototype->parent_class_name);
+    if (parent) {
+      prototype->parent = parent;
+      LinkPrototype(parent);
+    }
+  }
+  void LinkPrototypes() {
+    for (auto&& [_, prototype] : prototype_map_) {
+      LinkPrototype(prototype);
+    }
+  }
   void Register(const std::string& class_name, const Meta::PropertyMap& property_map) {
     for (auto&& [name, property] : property_map) {
       // clang-format off
