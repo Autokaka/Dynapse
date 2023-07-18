@@ -1,5 +1,3 @@
-[TOC]
-
 # Dynapse
 
 A tiny header-only C++ runtime reflection library.
@@ -79,4 +77,3 @@ ReflectionLibrary.register(className, {
 	},
 });
 ```
-
