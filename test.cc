@@ -10,42 +10,24 @@ using MetaCenter = dynapse::MetaCenter;
 class Foo {
  public:
   static void Register() {
+    auto center = MetaCenter::GetDefaultCenter();
     // clang-format off
-    MetaCenter::GetDefaultCenter()->Register({
-      .class_name = "Foo",
-      .constructor = [](auto) -> void* { return new Foo; },
-      .destructor = [](void* ptr) { delete reinterpret_cast<Foo*>(ptr); },
-      .member_property_map = {
-        {
-          "a", {
-            .get = [](const MetaPtr& caller, auto) { return Meta::RefInt(&caller->As<Foo*>()->a); },
-          }
-        },
-        {
-          "b", {
-            .get = [](const MetaPtr& caller, auto) { return Meta::RefFloat(&caller->As<Foo*>()->b); },
-          }
-        },
-        {
-          "c", {
-            .get = [](const MetaPtr& caller, auto) { return Meta::RefDouble(&caller->As<Foo*>()->c); },
-          }
-        },
-        {
-          "d", {
-            .get = [](const MetaPtr& caller, auto) { return Meta::RefBool(&caller->As<Foo*>()->d); },
-          }
-        },
-      },
-      .member_function_map = {
-        {
-          "Print", [](const MetaPtr& caller, auto) -> MetaPtr {
+    DYNMC_DECL_CLASS(center, Foo,
+      DYNMC_CLASS_EXTENDS(Foo),
+      DYNMC_CONSTRUCTOR([](auto) -> void* { return new Foo; }),
+      DYNMC_DESTRUCTOR([](void* ptr) { delete reinterpret_cast<Foo*>(ptr); }),
+      DYNMC_DECL_MEMBER_PROPS(
+        DYNMC_PROPERTY("a", [](const MetaPtr& foo, auto) { return Meta::RefInt(&foo->As<Foo*>()->a); }),
+        DYNMC_PROPERTY("b", [](const MetaPtr& foo, auto) { return Meta::RefFloat(&foo->As<Foo*>()->b); }),
+        DYNMC_PROPERTY("c", [](const MetaPtr& foo, auto) { return Meta::RefDouble(&foo->As<Foo*>()->c); }),
+        DYNMC_PROPERTY("d", [](const MetaPtr& foo, auto) { return Meta::RefBool(&foo->As<Foo*>()->d); }),
+      ),
+      DYNMC_DECL_MEMBER_FUNCS(
+        DYNMC_FUNCTION("Print", [](const MetaPtr& caller, auto) -> MetaPtr {
             caller->As<Foo*>()->Print();
             return nullptr;
-          }
-        },
-      },
-    }
+          }),
+      ),
     );
     // clang-format on
   }

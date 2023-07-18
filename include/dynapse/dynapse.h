@@ -32,8 +32,8 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   };
   using PropertyMap = std::unordered_map<std::string, Property>;
   struct Prototype final {
-    std::string parent_class_name;
     std::string class_name;
+    std::string parent_class_name;
     Constructor constructor = nullptr;
     Destructor destructor = nullptr;
     PropertyMap static_property_map;
@@ -275,3 +275,23 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
 #endif  // DYNAPSE_CORE
 
 }  // namespace dynapse
+
+#ifndef DYNAPSE_CORE
+
+// DYNMC === Dynapse MetaCenter
+
+// clang-format off
+#define DYNMC_DECL_CLASS(MetaCenter, ClassName, ...) MetaCenter->Register({ .class_name = #ClassName, __VA_ARGS__ });
+#define DYNMC_CLASS_EXTENDS(ClassName) .parent_class_name = #ClassName
+#define DYNMC_CONSTRUCTOR(Constructor) .constructor = Constructor
+#define DYNMC_DESTRUCTOR(Constructor) .destructor = Constructor
+#define DYNMC_DECL_MEMBER_PROPS(...) .member_property_map = {__VA_ARGS__}
+#define DYNMC_DECL_STATIC_PROPS(...) .static_property_map = {__VA_ARGS__}
+#define DYNMC_PROPERTY(PropertyName, Getter) { PropertyName, { .get = Getter }}
+#define DYNMC_READONLY_PROPERTY(PropertyName, Getter) {#PropertyName, { .readonly = true, .get = Getter }}
+#define DYNMC_DECL_MEMBER_FUNCS(...) .member_function_map = {__VA_ARGS__}
+#define DYNMC_DECL_STATIC_FUNCS(...) .static_function_map = {__VA_ARGS__}
+#define DYNMC_FUNCTION(FunctionName, Callback) { FunctionName, Callback }
+// clang-format on
+
+#endif  // DYNAPSE_CORE
