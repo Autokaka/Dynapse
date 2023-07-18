@@ -216,8 +216,8 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
     Register(class_name, prototype.static_property_map);
     Register(class_name, prototype.static_function_map);
     auto proto = std::make_shared<Meta::Prototype>(prototype);
-    auto weak_proto = Meta::FromObject(new Meta::WeakPrototype(proto), ReleaseWeakPrototype);
-    constructor_map_[class_name + ".constructor"] = weak_proto;
+    auto weak_proto_meta = Meta::FromObject(new Meta::WeakPrototype(proto), ReleaseWeakPrototype);
+    constructor_map_[class_name + ".constructor"] = weak_proto_meta;
     prototype_map_[class_name] = proto;
     LinkPrototype(proto);
   }
@@ -255,8 +255,8 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
   }
 
  private:
-  static MetaPtr CreateObject(const MetaPtr& prototype, const std::vector<MetaPtr>& args) {
-    auto* weak_proto = prototype->As<Meta::WeakPrototype*>();
+  static MetaPtr CreateObject(const MetaPtr& weak_proto_meta, const std::vector<MetaPtr>& args) {
+    auto* weak_proto = weak_proto_meta->As<Meta::WeakPrototype*>();
     auto proto = weak_proto->lock();
     auto object = Meta::FromObject(proto->constructor(args), proto->destructor);
     object->prototype = proto;
