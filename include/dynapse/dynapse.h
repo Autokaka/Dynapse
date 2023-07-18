@@ -32,6 +32,7 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   };
   using PropertyMap = std::unordered_map<std::string, Property>;
   struct Prototype final {
+    std::string parent_class_name;
     std::string class_name;
     Constructor constructor = nullptr;
     Destructor destructor = nullptr;
@@ -139,19 +140,14 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   }
 
   // object
-  explicit Meta(void* object_ptr, Destructor dtor, const PrototypePtr& prototype = nullptr)
-      : type_(Type::kObject), ptr_(object_ptr), destructor_(dtor), prototype_(prototype) {}
-  explicit Meta(void* object_ref, const PrototypePtr& prototype = nullptr)
-      : type_(Type::kObject), ptr_(object_ref), prototype_(prototype) {}
-  static MetaPtr FromObject(void* object_ptr, Destructor dtor, const PrototypePtr& prototype = nullptr) {
-    return std::make_shared<Meta>(object_ptr, dtor, prototype);
-  }
-  static MetaPtr RefObject(void* object_ref, const PrototypePtr& prototype = nullptr) {
-    return std::make_shared<Meta>(object_ref, prototype);
-  }
+  WeakPrototype prototype;
+  explicit Meta(void* object_ptr, Destructor dtor) : type_(Type::kObject), ptr_(object_ptr), destructor_(dtor) {}
+  explicit Meta(void* object_ref) : type_(Type::kObject), ptr_(object_ref) {}
+  static MetaPtr FromObject(void* object_ptr, Destructor dtor) { return std::make_shared<Meta>(object_ptr, dtor); }
+  static MetaPtr RefObject(void* object_ref) { return std::make_shared<Meta>(object_ref); }
   [[nodiscard]] bool IsObject() const { return type_ == Type::kObject; }
   MetaPtr Access(const std::string& name) {
-    auto proto = prototype_.lock();
+    auto proto = prototype.lock();
     if (!proto) {
       return nullptr;
     }
@@ -178,7 +174,6 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   static void ReleaseDouble(void* ptr) { delete reinterpret_cast<double*>(ptr); }
   static void ReleaseString(void* ptr) { delete reinterpret_cast<std::string*>(ptr); }
 
-  const WeakPrototype prototype_;
   const Type type_ = Type::kUnknown;
   const MetaPtr caller_;
   const Destructor destructor_ = nullptr;
@@ -237,11 +232,20 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
   const Meta::PropertyMap& GetPropertyMap() const { return property_map_; }
   const Meta::FunctionMap& GetFunctionMap() const { return function_map_; }
   const PrototypeMap& GetPrototypeMap() const { return prototype_map_; }
+  Meta::PrototypePtr GetPrototypeOf(const std::string& class_name) const {
+    auto proto_iter = prototype_map_.find(class_name);
+    if (proto_iter == prototype_map_.end()) {
+      return nullptr;
+    }
+    return proto_iter->second;
+  }
 
  private:
-  static MetaPtr CreateObject(const MetaPtr& caller, const std::vector<MetaPtr>& args) {
-    auto proto = caller->As<Meta::WeakPrototype*>()->lock();
-    return Meta::FromObject(proto->constructor(args), proto->destructor, proto);
+  static MetaPtr CreateObject(const MetaPtr& prototype, const std::vector<MetaPtr>& args) {
+    auto proto = prototype->As<Meta::WeakPrototype*>()->lock();
+    auto object = Meta::FromObject(proto->constructor(args), proto->destructor);
+    object->prototype = proto;
+    return object;
   }
 
   void Register(const std::string& class_name, const Meta::PropertyMap& property_map) {
