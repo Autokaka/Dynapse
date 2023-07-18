@@ -7,12 +7,30 @@ using Meta = dynapse::Meta;
 using MetaPtr = dynapse::MetaPtr;
 using MetaCenter = dynapse::MetaCenter;
 
-class Foo {
+class Base {
  public:
   static void Register() {
     auto center = MetaCenter::GetDefaultCenter();
     // clang-format off
-    DYNMC_DECL_CLASS(center, Foo,
+    DYNMC_DECL_CLASS(center, Base,
+      DYNMC_CONSTRUCTOR([](auto) -> void* { return new Base; }),
+      DYNMC_DESTRUCTOR([](void* ptr) { delete reinterpret_cast<Base*>(ptr); }),
+      DYNMC_DECL_MEMBER_PROPS(
+        DYNMC_PROPERTY("world", [](const MetaPtr& foo, auto) { return Meta::RefString(&foo->As<Base*>()->world); }),
+      ),
+    );
+    // clang-format on
+  }
+
+  std::string world = "Base";
+};
+
+class Foo : public Base {
+ public:
+  static void Register() {
+    auto center = MetaCenter::GetDefaultCenter();
+    // clang-format off
+    DYNMC_DECL_CLASS(center, Foo, DYNMC_CLASS_EXTENDS(Base),
       DYNMC_CONSTRUCTOR([](auto) -> void* { return new Foo; }),
       DYNMC_DESTRUCTOR([](void* ptr) { delete reinterpret_cast<Foo*>(ptr); }),
       DYNMC_DECL_MEMBER_PROPS(
@@ -41,10 +59,7 @@ class Foo {
   double c = kCValue;
   bool d = kDValue;
 
-  void Print() { std::cout << "Hello, " << world_ << "!" << std::endl; }
-
- private:
-  std::string world_ = "Foo";
+  void Print() { std::cout << "Hello, " << world << "!" << std::endl; }
 };
 
 void TestFoo() {
@@ -60,6 +75,10 @@ void TestFoo() {
   std::cout << "Foo is string? " << simple_class_meta->IsString() << std::endl;
   std::cout << "Foo is function? " << simple_class_meta->IsFunction() << std::endl;
   std::cout << "Foo is object? " << simple_class_meta->IsObject() << std::endl;
+
+  std::cout << "> TestFoo class extends" << std::endl;
+  auto* world = simple_class_meta->Access("world")->As<std::string*>();
+  std::cout << "Foo.world? " << *world << std::endl;
 
   std::cout << "> TestFoo function reflection" << std::endl;
   // center->Access("Foo.Print", simple_class_meta)->CallAsFunction();
@@ -78,6 +97,8 @@ void TestFoo() {
 
 int main() {
   Foo::Register();
+  // Register `Base` after `Foo` by design.
+  Base::Register();
   TestFoo();
   return 0;
 }
