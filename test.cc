@@ -6,11 +6,11 @@
 using Meta = dynapse::Meta;
 using MetaPtr = dynapse::MetaPtr;
 using MetaCenter = dynapse::MetaCenter;
+using MetaCenterPtr = dynapse::MetaCenterPtr;
 
 class Base {
  public:
-  static void Register() {
-    auto center = MetaCenter::GetDefaultCenter();
+  static void Register(const MetaCenterPtr& center) {
     // clang-format off
     DYNMC_DECL_CLASS(center, Base,
       DYNMC_CONSTRUCTOR([](auto) -> void* { return new Base; }),
@@ -27,8 +27,7 @@ class Base {
 
 class Foo : public Base {
  public:
-  static void Register() {
-    auto center = MetaCenter::GetDefaultCenter();
+  static void Register(const MetaCenterPtr& center) {
     // clang-format off
     DYNMC_DECL_CLASS(center, Foo, DYNMC_CLASS_EXTENDS(Base),
       DYNMC_CONSTRUCTOR([](auto) -> void* { return new Foo; }),
@@ -96,9 +95,15 @@ void TestFoo() {
 }
 
 int main() {
-  Foo::Register();
+  auto center = MetaCenter::GetDefaultCenter();
+
+  // compile time register
+  Foo::Register(center);
   // Register `Base` after `Foo` by design to test robustness.
-  Base::Register();
+  Base::Register(center);
+  center->LinkPrototypes();
+
+  // runtime reflection
   TestFoo();
   return 0;
 }
