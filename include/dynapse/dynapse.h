@@ -16,6 +16,7 @@ namespace dynapse {
  */
 class Meta;
 using MetaPtr = std::shared_ptr<Meta>;
+using WeakMeta = std::weak_ptr<Meta>;
 class Meta final : public std::enable_shared_from_this<Meta> {
  public:
   // Meta
@@ -130,15 +131,15 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   [[nodiscard]] bool IsString() const { return type_ == Type::kString; }
 
   // function
-  explicit Meta(Function call_as_function, MetaPtr caller = nullptr)
-      : ptr_(reinterpret_cast<void*>(call_as_function)), caller_(std::move(caller)), type_(Type::kFunction) {}
+  explicit Meta(Function call_as_function, const MetaPtr& caller = nullptr)
+      : ptr_(reinterpret_cast<void*>(call_as_function)), caller_(caller), type_(Type::kFunction) {}
   static MetaPtr RefFunction(Function call_as_function, const MetaPtr& caller = nullptr) {
     return std::make_shared<Meta>(call_as_function, caller);
   }
   [[nodiscard]] bool IsFunction() const { return type_ == Type::kFunction; }
   MetaPtr CallAsFunction(const std::vector<MetaPtr>& args = {}) {
     auto* call_as_function = reinterpret_cast<Function>(ptr_);
-    return call_as_function(caller_, args);
+    return call_as_function(caller_.lock(), args);
   }
 
   // object
@@ -181,7 +182,7 @@ class Meta final : public std::enable_shared_from_this<Meta> {
   static void ReleaseString(void* ptr) { delete reinterpret_cast<std::string*>(ptr); }
 
   const Type type_ = Type::kUnknown;
-  const MetaPtr caller_;
+  const WeakMeta caller_;
   const Destructor destructor_ = nullptr;
   void* ptr_ = nullptr;
 };
@@ -198,7 +199,7 @@ using MetaCenterPtr = std::shared_ptr<MetaCenter>;
 class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
  public:
   using PrototypeMap = std::unordered_map<std::string, Meta::PrototypePtr>;
-  using WeakPrototypeMap = std::unordered_map<std::string, Meta::WeakPrototype>;
+  using WeakPrototypeMap = std::unordered_map<std::string, MetaPtr /** <WeakPrototype*> */>;
 
   MetaCenter() = default;
   static std::shared_ptr<MetaCenter> GetDefaultCenter() {
@@ -215,7 +216,8 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
     Register(class_name, prototype.static_property_map);
     Register(class_name, prototype.static_function_map);
     auto proto = std::make_shared<Meta::Prototype>(prototype);
-    constructor_map_[class_name + ".constructor"] = proto;
+    auto weak_proto = Meta::FromObject(new Meta::WeakPrototype(proto), ReleaseWeakPrototype);
+    constructor_map_[class_name + ".constructor"] = weak_proto;
     prototype_map_[class_name] = proto;
     LinkPrototype(proto);
   }
@@ -223,7 +225,7 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
   MetaPtr Access(const std::string& path, const MetaPtr& caller = nullptr, const std::vector<MetaPtr>& args = {}) {
     for (auto&& [key, proto] : constructor_map_) {
       if (key == path) {
-        return Meta::RefFunction(CreateObject, Meta::RefObject(&proto));
+        return Meta::RefFunction(CreateObject, proto);
       }
     }
     MetaPtr result = nullptr;
@@ -254,11 +256,13 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
 
  private:
   static MetaPtr CreateObject(const MetaPtr& prototype, const std::vector<MetaPtr>& args) {
-    auto proto = prototype->As<Meta::WeakPrototype*>()->lock();
+    auto* weak_proto = prototype->As<Meta::WeakPrototype*>();
+    auto proto = weak_proto->lock();
     auto object = Meta::FromObject(proto->constructor(args), proto->destructor);
     object->prototype = proto;
     return object;
   }
+  static void ReleaseWeakPrototype(void* ptr) { delete reinterpret_cast<Meta::WeakPrototype*>(ptr); }
 
   void LinkPrototype(const Meta::PrototypePtr& prototype) {
     auto parent = GetPrototypeOf(prototype->parent_class_name);
