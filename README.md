@@ -59,21 +59,21 @@ Finally the fake code should look like this:
 
 ```
 ReflectionLibrary.register(className, {
-	constructor: (Any args) => {
-		const args = args.toArray();
-		return new FooClass(arg[0], arg[1], ...);
+  constructor: (Any args) => {
+    const args = args.toArray();
+    return new FooClass(arg[0], arg[1], ...);
 	},
-	memberProperties: {
-		"bar": {
-			readonly: false,
-			get: (Any owner) => {
-				const foo = owner.to<FooClass>();
+  memberProperties: {
+    "bar": {
+      readonly: false,
+      get: (Any owner) => {
+        const foo = owner.to<FooClass>();
         return Any.ref(foo.bar);
       },
-		},
-	},
-	memberFunctions: {
-		
-	},
+    },
+  },
+  memberFunctions: {
+    
+  },
 });
 ```
