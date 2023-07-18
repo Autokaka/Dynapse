@@ -13,7 +13,6 @@ class Foo {
     auto center = MetaCenter::GetDefaultCenter();
     // clang-format off
     DYNMC_DECL_CLASS(center, Foo,
-      DYNMC_CLASS_EXTENDS(Foo),
       DYNMC_CONSTRUCTOR([](auto) -> void* { return new Foo; }),
       DYNMC_DESTRUCTOR([](void* ptr) { delete reinterpret_cast<Foo*>(ptr); }),
       DYNMC_DECL_MEMBER_PROPS(
