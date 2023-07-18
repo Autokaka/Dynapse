@@ -97,7 +97,7 @@ void TestFoo() {
 
 int main() {
   Foo::Register();
-  // Register `Base` after `Foo` by design.
+  // Register `Base` after `Foo` by design to test robustness.
   Base::Register();
   TestFoo();
   return 0;

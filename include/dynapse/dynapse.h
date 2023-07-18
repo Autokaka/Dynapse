@@ -217,7 +217,9 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
     auto proto = std::make_shared<Meta::Prototype>(prototype);
     constructor_map_[class_name + ".constructor"] = proto;
     prototype_map_[class_name] = proto;
-    LinkPrototypes();
+    if (auto_prototype_linking) {
+      LinkPrototypes();
+    }
   }
 
   MetaPtr Access(const std::string& path, const MetaPtr& caller = nullptr, const std::vector<MetaPtr>& args = {}) {
@@ -246,6 +248,8 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
     }
     return proto_iter->second;
   }
+
+  bool auto_prototype_linking = true;
 
  private:
   static MetaPtr CreateObject(const MetaPtr& prototype, const std::vector<MetaPtr>& args) {
