@@ -272,14 +272,7 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
   PrototypeMap prototype_map_;
 };
 
-#endif  // DYNAPSE_CORE
-
-}  // namespace dynapse
-
-#ifndef DYNAPSE_CORE
-
 // DYNMC === Dynapse MetaCenter
-
 // clang-format off
 #define DYNMC_DECL_CLASS(MetaCenter, ClassName, ...) MetaCenter->Register({ .class_name = #ClassName, __VA_ARGS__ });
 #define DYNMC_CLASS_EXTENDS(ClassName) .parent_class_name = #ClassName
@@ -295,3 +288,5 @@ class MetaCenter final : public std::enable_shared_from_this<MetaCenter> {
 // clang-format on
 
 #endif  // DYNAPSE_CORE
+
+}  // namespace dynapse
