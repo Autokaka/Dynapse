@@ -1,11 +1,11 @@
 # Dynapse
 
-A tiny header-only C++ runtime reflection library.
+Another C++ runtime reflection library.
 
 The libdynapse consists of:
 
-- Meta: **CORE** functionality of the Dynapse library.
-- MetaCenter: **EXTRA** component that helps developers create Dynapse Meta in a more simple and human-readable way.
+- Any: **CORE** functionality of the Dynapse library.
+- Reflect: **UTILITY** that helps developers create Dynapse Any in a more simple and human-readable way.
 
 ## A 'Hello World' Example
 
