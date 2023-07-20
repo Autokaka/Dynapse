@@ -23,13 +23,15 @@ Any& Any::operator=(const Any& other) {
   if (this == &other) {
     return *this;
   }
-  ptr_ = other.ptr_;
   auto assign = prototype.assign;
-  if (assign != nullptr) {
+  if (assign == nullptr) {
+    ptr_ = other.ptr_;
+    prototype = other.prototype;
+  } else {
+    prototype.assign = nullptr;
     assign(*this, {other});
+    prototype.assign = assign;
   }
-  prototype = other.prototype;
-  prototype.assign = assign;
   return *this;
 }
 
@@ -43,13 +45,15 @@ Any& Any::operator=(Any&& other) noexcept {
   if (this == &other) {
     return *this;
   }
-  ptr_ = std::move(other.ptr_);
   auto assign = prototype.assign;
-  if (assign != nullptr) {
+  if (assign == nullptr) {
+    ptr_ = std::move(other.ptr_);
+    prototype = std::move(other.prototype);
+  } else {
+    prototype.assign = nullptr;
     assign(*this, {other});
+    prototype.assign = assign;
   }
-  prototype = std::move(other.prototype);
-  prototype.assign = assign;
   return *this;
 }
 
@@ -81,7 +85,7 @@ bool Any::Access(const std::string& name, const Any& caller, const PropertyMap& 
     if (key == name) {
       if (prop.value) {
         *result = *prop.value;
-        (*result).prototype.assign = prop.set;
+        (*result).prototype.assign = prop.readonly ? nullptr : DefaultSetter;
         return true;
       }
       if (prop.get != nullptr) {
@@ -96,11 +100,16 @@ bool Any::Access(const std::string& name, const Any& caller, const PropertyMap& 
   return false;
 }
 
+Any Any::DefaultSetter(const Any& caller, const Args& args) {
+  const_cast<Any&>(caller) = args[0];
+  return Any::Null();
+}
+
 bool Any::Access(const std::string& name, const Any& caller, const FunctionMap& function_map, Any* result) {
   // NOLINTNEXTLINE
   for (auto&& [key, function] : function_map) {
     if (key == name) {
-      *result = Any(caller.As<>(), {.call_as_function = function, .destructor = EmptyDestructor});
+      *result = Any(caller.As(), {.call_as_function = function, .destructor = EmptyDestructor});
       return true;
     }
   }
@@ -124,7 +133,7 @@ bool Any::Access(const std::string& path, OptionalPrototype prototype, Any* resu
   if (Access(path, Any::Null(), proto.static_property_map, result)) {
     return true;
   }
-  auto parent = GetReflect()->FindPrototype(proto.parent_name);
+  auto parent = GetReflect().FindPrototype(proto.parent_name);
   return Access(path, parent, result);
 }
 

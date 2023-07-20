@@ -170,9 +170,9 @@ Reflect::Reflect() {
   Register({.name = "string", .destructor = [](void* ptr) { delete static_cast<std::string*>(ptr); }});
 }
 
-ReflectPtr GetReflect() {
+Reflect& GetReflect() {
   static auto reflect = ReflectPtr(new Reflect);
-  return reflect;
+  return *reflect;
 }
 
 std::string TypeOf(const Any& any) {

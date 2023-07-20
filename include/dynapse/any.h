@@ -37,6 +37,7 @@ class Any final {
 
  private:
   static void EmptyDestructor(void* ptr) {}
+  static Any DefaultSetter(const Any& caller, const Args& args);
   static bool Access(const std::string& name, const Any& caller, const PropertyMap& property_map, Any* result);
   static bool Access(const std::string& name, const Any& caller, const FunctionMap& function_map, Any* result);
   bool Access(const std::string& path, OptionalPrototype prototype, Any* result);
