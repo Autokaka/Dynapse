@@ -33,6 +33,26 @@ Any& Any::operator=(const Any& other) {
   return *this;
 }
 
+Any::Any(Any&& other) noexcept {
+  ptr_ = std::move(other.ptr_);
+  prototype = std::move(other.prototype);
+  prototype.assign = nullptr;
+}
+
+Any& Any::operator=(Any&& other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+  ptr_ = std::move(other.ptr_);
+  auto assign = prototype.assign;
+  if (assign != nullptr) {
+    assign(*this, {other});
+  }
+  prototype = std::move(other.prototype);
+  prototype.assign = assign;
+  return *this;
+}
+
 Any Any::operator[](const std::string& path) {
   auto result = Any::Null();
   Access(path, prototype, &result);

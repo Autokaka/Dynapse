@@ -14,8 +14,8 @@ class Any final {
   explicit Any(void* ptr, const Prototype& prototype);
   Any(const Any& other);
   Any& operator=(const Any& other);
-  Any(Any&& other) noexcept = default;
-  Any& operator=(Any&& other) noexcept = default;
+  Any(Any&& other) noexcept;
+  Any& operator=(Any&& other) noexcept;
   ~Any() = default;
 
   explicit operator bool() const { return ptr_ != nullptr; }

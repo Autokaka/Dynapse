@@ -12,9 +12,12 @@ int main() {
     DYN_CONSTRUCTOR([](auto) -> void* { return new std::string(); }),
     DYN_DESTRUCTOR([](void* ptr) { delete static_cast<std::string*>(ptr); }),
     DYN_DECL_MEMBER_PROPS(
-      DYN_PROPERTY(R, "length", [](const Any& caller, auto) -> Any { 
+      DYN_PROPERTY(RW, "length", [](const Any& caller, auto) -> Any { 
         auto length = caller.As<std::string*>()->length();
         return GetReflect()->Construct(new int(length), "int");
+      }, [](const Any& caller, auto) -> Any { 
+        std::cout << "Setter invoked!" << std::endl;
+        return Any::Null();
       }),
     ),
   )
@@ -25,6 +28,8 @@ int main() {
   string.As<std::string*>()->append("Hello, World!");
   std::cout << "String: " << string.To<std::string>() << std::endl;
   std::cout << "String.length: " << string["length"].To<int>() << std::endl;
+
+  string["length"] = Any::Null();
 
   return 0;
 }

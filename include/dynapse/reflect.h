@@ -54,7 +54,7 @@ std::string TypeOf(const Any& any);
 #define DYN_PROPERTY(AccessMode, PropertyName, ...) DYN_##AccessMode##_PROPERTY(PropertyName, __VA_ARGS__)
 #define DYN_R_PROPERTY(PropertyName, Getter) {PropertyName, {.get = Getter}}
 #define DYN_W_PROPERTY(PropertyName, Setter) {PropertyName, {.set = Setter}}
-#define DYN_RW_PROPERTY(PropertyName, Getter, Setter) {#PropertyName, {.get = Getter, .set = Setter}}
+#define DYN_RW_PROPERTY(PropertyName, Getter, Setter) {PropertyName, {.get = Getter, .set = Setter}}
 #define DYN_DECL_MEMBER_FUNCS(...) .member_function_map = {__VA_ARGS__}
 #define DYN_DECL_STATIC_FUNCS(...) .static_function_map = {__VA_ARGS__}
 #define DYN_FUNCTION(FunctionName, Callback) {FunctionName, Callback}
