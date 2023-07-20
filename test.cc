@@ -12,7 +12,7 @@ int main() {
     DYN_CONSTRUCTOR([](auto) -> void* { return new std::string(); }),
     DYN_DESTRUCTOR([](void* ptr) { delete static_cast<std::string*>(ptr); }),
     DYN_DECL_MEMBER_PROPS(
-      DYN_PROPERTY("length", [](const Any& caller, auto) -> Any { 
+      DYN_PROPERTY(R, "length", [](const Any& caller, auto) -> Any { 
         auto length = caller.As<std::string*>()->length();
         return GetReflect()->Construct(new int(length), "int");
       }),

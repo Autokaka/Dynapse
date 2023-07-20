@@ -51,8 +51,10 @@ std::string TypeOf(const Any& any);
 #define DYN_DESTRUCTOR(Constructor) .destructor = Constructor
 #define DYN_DECL_MEMBER_PROPS(...) .member_property_map = {__VA_ARGS__}
 #define DYN_DECL_STATIC_PROPS(...) .static_property_map = {__VA_ARGS__}
-#define DYN_PROPERTY(PropertyName, Getter) { PropertyName, { .get = Getter }}
-#define DYN_READONLY_PROPERTY(PropertyName, Getter) {#PropertyName, { .readonly = true, .get = Getter }}
+#define DYN_PROPERTY(AccessMode, PropertyName, ...) DYN_##AccessMode##_PROPERTY(PropertyName, __VA_ARGS__)
+#define DYN_R_PROPERTY(PropertyName, Getter) {PropertyName, {.get = Getter}}
+#define DYN_W_PROPERTY(PropertyName, Setter) {PropertyName, {.set = Setter}}
+#define DYN_RW_PROPERTY(PropertyName, Getter, Setter) {#PropertyName, {.get = Getter, .set = Setter}}
 #define DYN_DECL_MEMBER_FUNCS(...) .member_function_map = {__VA_ARGS__}
 #define DYN_DECL_STATIC_FUNCS(...) .static_function_map = {__VA_ARGS__}
 #define DYN_FUNCTION(FunctionName, Callback) {FunctionName, Callback}

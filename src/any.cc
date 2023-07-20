@@ -13,6 +13,26 @@ Any::Any(void* ptr, const Prototype& prototype) {
   Reset(ptr, prototype);
 }
 
+Any::Any(const Any& other) {
+  ptr_ = other.ptr_;
+  prototype = other.prototype;
+  prototype.assign = nullptr;
+}
+
+Any& Any::operator=(const Any& other) {
+  if (this == &other) {
+    return *this;
+  }
+  ptr_ = other.ptr_;
+  auto assign = prototype.assign;
+  if (assign != nullptr) {
+    assign(*this, {other});
+  }
+  prototype = other.prototype;
+  prototype.assign = assign;
+  return *this;
+}
+
 Any Any::operator[](const std::string& path) {
   auto result = Any::Null();
   Access(path, prototype, &result);
@@ -37,10 +57,19 @@ void Any::Reset(void* ptr, const Prototype& prototype) {
 
 bool Any::Access(const std::string& name, const Any& caller, const PropertyMap& property_map, Any* result) {
   // NOLINTNEXTLINE
-  for (auto&& [key, prop] : property_map) {
+  for (const auto& [key, prop] : property_map) {
     if (key == name) {
-      // FIXME(Autokaka): prop.value && (returned Any).assign ???
-      *result = prop.get != nullptr ? prop.get(caller, {}) : Any::Null();
+      if (prop.value) {
+        *result = *prop.value;
+        (*result).prototype.assign = prop.set;
+        return true;
+      }
+      if (prop.get != nullptr) {
+        *result = prop.get(caller, {});
+        (*result).prototype.assign = prop.set;
+        return true;
+      }
+      *result = Any::Null();
       return true;
     }
   }
@@ -75,7 +104,6 @@ bool Any::Access(const std::string& path, OptionalPrototype prototype, Any* resu
   if (Access(path, Any::Null(), proto.static_property_map, result)) {
     return true;
   }
-  // TODO(Autokaka): extensible
   auto parent = GetReflect()->FindPrototype(proto.parent_name);
   return Access(path, parent, result);
 }

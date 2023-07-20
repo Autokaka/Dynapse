@@ -12,6 +12,10 @@ class Any final {
   static Any Null();
   explicit Any() = default;
   explicit Any(void* ptr, const Prototype& prototype);
+  Any(const Any& other);
+  Any& operator=(const Any& other);
+  Any(Any&& other) noexcept = default;
+  Any& operator=(Any&& other) noexcept = default;
   ~Any() = default;
 
   explicit operator bool() const { return ptr_ != nullptr; }

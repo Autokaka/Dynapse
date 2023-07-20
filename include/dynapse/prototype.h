@@ -26,7 +26,6 @@ struct Prototype final {
   // as value
   Constructor constructor = nullptr;
   Destructor destructor = nullptr;
-  Function copy = nullptr;
   Function assign = nullptr;
   // as object
   PropertyMap static_property_map;
