@@ -154,11 +154,11 @@ bool Reflect::Set(Any& any, const std::string& prop_key, const Any& prop_value) 
 
 // NOLINTNEXTLINE
 bool Reflect::SetPrototypeOf(Any& any, const Prototype& prototype) {
-  if (IsExtensible(any)) {
-    any.prototype = prototype;
-    return true;
+  if (!IsExtensible(any)) {
+    return false;
   }
-  return false;
+  any.prototype = prototype;
+  return true;
 }
 
 Reflect::Reflect() {
