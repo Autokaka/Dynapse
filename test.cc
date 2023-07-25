@@ -2,7 +2,6 @@
 
 #include <dynapse/dynapse.h>
 #include <iostream>
-#include "dynapse/reflect.h"
 
 // NOLINTNEXTLINE
 using namespace dynapse;
@@ -29,8 +28,12 @@ int main() {
   auto string = reflect.Construct("String");
   string.As<std::string*>()->append("Hello, World!");
   std::cout << "String: " << string.To<std::string>() << std::endl;
+
   std::cout << "String.length: " << string["length"].To<int>() << std::endl;
   string["length"] = Any::Null();
+  std::cout << "String.length: " << string["length"].To<int>() << std::endl;
+
+  std::cout << "String.size: " << string["size"].To<int>() << std::endl;
   // NOLINTNEXTLINE
   string["size"] = reflect.Construct(new int(10), "int");
   // FIXME(Autokaka): make it 10!

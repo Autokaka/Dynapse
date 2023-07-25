@@ -22,12 +22,10 @@ using FunctionMap = std::unordered_map<std::string, Function>;
 
 struct Property;
 using PropertyMap = std::unordered_map<std::string, Property>;
-using OptionalProperty = std::optional<Property>;
 
 struct Prototype;
 using PrototypeMap = std::unordered_map<std::string, Prototype>;
 using PrototypeVector = std::vector<Prototype>;
-using OptionalPrototype = std::optional<Prototype>;
 
 class Reflect;
 using ReflectPtr = std::shared_ptr<Reflect>;

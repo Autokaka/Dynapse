@@ -15,13 +15,13 @@ std::vector<Prototype> Reflect::GetPrototypes() const {
   return prototypes;
 }
 
-OptionalPrototype Reflect::FindPrototype(const std::string& name) const {
+const Prototype* Reflect::FindPrototype(const std::string& name) const {
   auto iter = prototype_map_.find(name);
-  return iter == prototype_map_.end() ? std::nullopt : std::make_optional(iter->second);
+  return iter == prototype_map_.end() ? nullptr : &iter->second;
 }
 
 bool Reflect::SetPrototype(Any& any, const std::string& name) {
-  if (auto proto = FindPrototype(name)) {
+  if (const auto* proto = FindPrototype(name)) {
     return SetPrototypeOf(any, *proto);
   }
   return false;
@@ -37,14 +37,14 @@ Any Reflect::Apply(Function function, const Any& caller, const Args& args) const
 }
 
 Any Reflect::Construct(void* ptr, const std::string& name) const {
-  if (auto prototype = FindPrototype(name)) {
+  if (const auto* prototype = FindPrototype(name)) {
     return Any(ptr, *prototype);
   }
   return Any::Null();
 }
 
 Any Reflect::Construct(const std::string& name, const Args& args) const {
-  if (auto prototype = FindPrototype(name)) {
+  if (const auto* prototype = FindPrototype(name)) {
     auto* result = prototype->constructor(args);
     return Any(result, *prototype);
   }
@@ -56,8 +56,8 @@ bool Reflect::DefineProperty(Any& any, const std::string& prop_key, const Proper
   if (!IsExtensible(any)) {
     return false;
   }
-  auto prev_prop = GetOwnPropertyDescriptor(any, prop_key);
-  if (!prev_prop || prev_prop->configurable) {
+  const auto* prev_prop = GetOwnPropertyDescriptor(any, prop_key);
+  if (prev_prop == nullptr || prev_prop->configurable) {
     any.prototype.member_property_map[prop_key] = prop_desc;
     return true;
   }
@@ -66,16 +66,16 @@ bool Reflect::DefineProperty(Any& any, const std::string& prop_key, const Proper
 
 // NOLINTNEXTLINE
 void Reflect::DeleteProperty(Any& any, const std::string& prop_key) {
-  auto prev_prop = GetOwnPropertyDescriptor(any, prop_key);
-  if (prev_prop && prev_prop->configurable) {
+  const auto* prev_prop = GetOwnPropertyDescriptor(any, prop_key);
+  if (prev_prop != nullptr && prev_prop->configurable) {
     any.prototype.member_property_map.erase(prop_key);
   }
 }
 
 // NOLINTNEXTLINE
 Any Reflect::Get(const Any& any, const std::string& prop_key) const {
-  if (auto desc = GetOwnPropertyDescriptor(any, prop_key)) {
-    auto property = desc.value();
+  if (const auto* desc = GetOwnPropertyDescriptor(any, prop_key)) {
+    auto property = *desc;
     if (property.value) {
       return *property.value;
     }
@@ -87,16 +87,16 @@ Any Reflect::Get(const Any& any, const std::string& prop_key) const {
 }
 
 // NOLINTNEXTLINE
-OptionalProperty Reflect::GetOwnPropertyDescriptor(const Any& any, const std::string& prop_key) const {
+const Property* Reflect::GetOwnPropertyDescriptor(const Any& any, const std::string& prop_key) const {
   for (const auto& [name, property] : any.prototype.member_property_map) {
     if (name == prop_key) {
-      return std::make_optional(property);
+      return &property;
     }
   }
-  return std::nullopt;
+  return nullptr;
 }
 
-OptionalPrototype Reflect::GetPrototypeOf(const Any& any) const {
+const Prototype* Reflect::GetPrototypeOf(const Any& any) const {
   return FindPrototype(any.prototype.name);
 }
 

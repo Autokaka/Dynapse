@@ -13,7 +13,7 @@ class Reflect final : public std::enable_shared_from_this<Reflect> {
 
   void Register(const Prototype& prototype);
   PrototypeVector GetPrototypes() const;
-  OptionalPrototype FindPrototype(const std::string& name) const;
+  const Prototype* FindPrototype(const std::string& name) const;
   bool SetPrototype(Any& any, const std::string& name);
 
   Any Apply(const Any& function, const Any& caller = Any::Null(), const Args& args = {}) const;
@@ -23,8 +23,8 @@ class Reflect final : public std::enable_shared_from_this<Reflect> {
   bool DefineProperty(Any& any, const std::string& prop_key, const Property& prop_desc);
   void DeleteProperty(Any& any, const std::string& prop_key);
   Any Get(const Any& any, const std::string& prop_key) const;
-  OptionalProperty GetOwnPropertyDescriptor(const Any& any, const std::string& prop_key) const;
-  OptionalPrototype GetPrototypeOf(const Any& any) const;
+  const Property* GetOwnPropertyDescriptor(const Any& any, const std::string& prop_key) const;
+  const Prototype* GetPrototypeOf(const Any& any) const;
   bool Has(const Any& any, const std::string& prop_key) const;
   bool IsExtensible(const Any& any) const;
   std::vector<std::string> OwnKeys(const Any& any) const;

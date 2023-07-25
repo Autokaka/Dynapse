@@ -29,7 +29,7 @@ Any& Any::operator=(const Any& other) {
     prototype = other.prototype;
   } else {
     prototype.assign = nullptr;
-    assign(*this, {other});
+    (*assign)({other});
     prototype.assign = assign;
   }
   return *this;
@@ -51,7 +51,7 @@ Any& Any::operator=(Any&& other) noexcept {
     prototype = std::move(other.prototype);
   } else {
     prototype.assign = nullptr;
-    assign(*this, {other});
+    (*assign)({other});
     prototype.assign = assign;
   }
   return *this;
@@ -70,10 +70,6 @@ Any Any::operator()(const Args& args) const {
   return Any::Null();
 }
 
-void Any::Reset(void* ptr) {
-  ptr_ = std::shared_ptr<void>(ptr, prototype.destructor);
-}
-
 void Any::Reset(void* ptr, const Prototype& prototype) {
   ptr_ = std::shared_ptr<void>(ptr, prototype.destructor);
   this->prototype = prototype;
@@ -85,12 +81,20 @@ bool Any::Access(const std::string& name, const Any& caller, const PropertyMap& 
     if (key == name) {
       if (prop.value) {
         *result = *prop.value;
-        (*result).prototype.assign = prop.readonly ? nullptr : DefaultSetter;
+        if (prop.readonly) {
+          result->prototype.assign = nullptr;
+        } else {
+          Prototype proto{.call_as_function = CallAsPropertySetter, .destructor = EmptyDestructor};
+          result->prototype.assign = make_any(const_cast<Property*>(&prop), proto);
+        }
         return true;
       }
       if (prop.get != nullptr) {
         *result = prop.get(caller, {});
-        (*result).prototype.assign = prop.set;
+        auto assign = make_any();
+        assign->ptr_ = caller.ptr_;
+        assign->prototype = {.call_as_function = prop.set};
+        result->prototype.assign = assign;
         return true;
       }
       *result = Any::Null();
@@ -100,8 +104,11 @@ bool Any::Access(const std::string& name, const Any& caller, const PropertyMap& 
   return false;
 }
 
-Any Any::DefaultSetter(const Any& caller, const Args& args) {
-  const_cast<Any&>(caller) = args[0];
+Any Any::CallAsPropertySetter(const Any& setter_context, const Args& args) {
+  auto* prop = static_cast<Property*>(setter_context.ptr_.get());
+  prop->value = make_any();
+  prop->value->ptr_ = args[0].ptr_;
+  prop->value->prototype = args[0].prototype;
   return Any::Null();
 }
 
@@ -109,32 +116,33 @@ bool Any::Access(const std::string& name, const Any& caller, const FunctionMap& 
   // NOLINTNEXTLINE
   for (auto&& [key, function] : function_map) {
     if (key == name) {
-      *result = Any(caller.As(), {.call_as_function = function, .destructor = EmptyDestructor});
+      *result = Any();
+      result->ptr_ = caller.ptr_;
+      result->prototype = {.call_as_function = function};
       return true;
     }
   }
   return false;
 }
 
-bool Any::Access(const std::string& path, OptionalPrototype prototype, Any* result) {
-  if (!prototype) {
-    return false;
-  }
-  const auto& proto = prototype.value();
-  if (Access(path, *this, proto.member_property_map, result)) {
+bool Any::Access(const std::string& path, const Prototype& prototype, Any* result) {
+  if (Access(path, *this, prototype.member_property_map, result)) {
     return true;
   }
-  if (Access(path, *this, proto.member_function_map, result)) {
+  if (Access(path, *this, prototype.member_function_map, result)) {
     return true;
   }
-  if (Access(path, Any::Null(), proto.static_function_map, result)) {
+  if (Access(path, Any::Null(), prototype.static_function_map, result)) {
     return true;
   }
-  if (Access(path, Any::Null(), proto.static_property_map, result)) {
+  if (Access(path, Any::Null(), prototype.static_property_map, result)) {
     return true;
   }
-  auto parent = GetReflect().FindPrototype(proto.parent_name);
-  return Access(path, parent, result);
+  const auto* parent = GetReflect().FindPrototype(prototype.parent_name);
+  if (parent != nullptr) {
+    return Access(path, *parent, result);
+  }
+  return false;
 }
 
 }  // namespace dynapse

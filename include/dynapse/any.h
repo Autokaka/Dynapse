@@ -9,6 +9,8 @@ namespace dynapse {
 
 class Any final {
  public:
+  using NativePtr = std::shared_ptr<void>;
+
   static Any Null();
   explicit Any() = default;
   explicit Any(void* ptr, const Prototype& prototype);
@@ -30,19 +32,18 @@ class Any final {
   T As() const {
     return static_cast<T>(ptr_.get());
   }
-  void Reset(void* ptr);
   void Reset(void* ptr, const Prototype& prototype);
 
   Prototype prototype;
 
  private:
   static void EmptyDestructor(void* ptr) {}
-  static Any DefaultSetter(const Any& caller, const Args& args);
+  static Any CallAsPropertySetter(const Any& setter_context, const Args& args);
   static bool Access(const std::string& name, const Any& caller, const PropertyMap& property_map, Any* result);
   static bool Access(const std::string& name, const Any& caller, const FunctionMap& function_map, Any* result);
-  bool Access(const std::string& path, OptionalPrototype prototype, Any* result);
+  bool Access(const std::string& path, const Prototype& prototype, Any* result);
 
-  std::shared_ptr<void> ptr_ = nullptr;
+  NativePtr ptr_ = nullptr;
 };
 
 template <typename... Args>
