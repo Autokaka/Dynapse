@@ -36,7 +36,6 @@ int main() {
   std::cout << "String.size: " << string["size"].To<int>() << std::endl;
   // NOLINTNEXTLINE
   string["size"] = reflect.Construct(new int(10), "int");
-  // FIXME(Autokaka): make it 10!
   std::cout << "String.size: " << string["size"].To<int>() << std::endl;
 
   return 0;
