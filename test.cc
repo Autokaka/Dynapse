@@ -16,7 +16,7 @@ int main() {
         auto length = caller.As<std::string*>()->length();
         return GetReflect().Construct(new int(length), "int");
       }, [](const Any& caller, auto) -> Any { 
-        std::cout << "Setter invoked!" << std::endl;
+        std::cout << "Setter invoked!" << '\n';
         return Any::Null();
       }),
       DYN_PROPERTY(V, "size", make_any(GetReflect().Construct(new int(0), "int"))),
@@ -27,16 +27,16 @@ int main() {
   auto reflect = GetReflect();
   auto string = reflect.Construct("String");
   string.As<std::string*>()->append("Hello, World!");
-  std::cout << "String: " << string.To<std::string>() << std::endl;
+  std::cout << "String: " << string.To<std::string>() << '\n';
 
-  std::cout << "String.length: " << string["length"].To<int>() << std::endl;
+  std::cout << "String.length: " << string["length"].To<int>() << '\n';
   string["length"] = Any::Null();
-  std::cout << "String.length: " << string["length"].To<int>() << std::endl;
+  std::cout << "String.length: " << string["length"].To<int>() << '\n';
 
-  std::cout << "String.size: " << string["size"].To<int>() << std::endl;
+  std::cout << "String.size: " << string["size"].To<int>() << '\n';
   // NOLINTNEXTLINE
   string["size"] = reflect.Construct(new int(10), "int");
-  std::cout << "String.size: " << string["size"].To<int>() << std::endl;
+  std::cout << "String.size: " << string["size"].To<int>() << '\n';
 
   return 0;
 }

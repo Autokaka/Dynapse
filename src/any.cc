@@ -105,7 +105,7 @@ bool Any::Access(const std::string& name, const Any& caller, const PropertyMap& 
 }
 
 Any Any::CallAsPropertySetter(const Any& setter_context, const Args& args) {
-  auto* prop = static_cast<Property*>(setter_context.ptr_.get());
+  auto* prop = setter_context.As<Property*>();
   prop->value = make_any();
   prop->value->ptr_ = args[0].ptr_;
   prop->value->prototype = args[0].prototype;
