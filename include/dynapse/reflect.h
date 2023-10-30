@@ -9,7 +9,7 @@ namespace dynapse {
 
 class Reflect final : public std::enable_shared_from_this<Reflect> {
  public:
-  static ReflectPtr Get();
+  explicit Reflect();
 
   void Register(const Prototype& prototype);
   PrototypeVector GetPrototypes() const;
@@ -33,8 +33,6 @@ class Reflect final : public std::enable_shared_from_this<Reflect> {
   bool SetPrototypeOf(Any& any, const Prototype& prototype);
 
  private:
-  friend Reflect& GetReflect();
-  Reflect();
   PrototypeMap prototype_map_;
 };
 

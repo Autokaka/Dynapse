@@ -1,8 +1,19 @@
 // Created by Autokaka (qq1909698494@gmail.com) on 2023/07/19.
 
 #include <dynapse/dynapse.h>
+#include <cstdint>
 
 namespace dynapse {
+
+Reflect::Reflect() {
+  // register basic protos
+  Register({.name = "bool", .destructor = [](void* ptr) { delete static_cast<bool*>(ptr); }});
+  Register({.name = "int", .destructor = [](void* ptr) { delete static_cast<int*>(ptr); }});
+  Register({.name = "int64", .destructor = [](void* ptr) { delete static_cast<std::int64_t*>(ptr); }});
+  Register({.name = "float", .destructor = [](void* ptr) { delete static_cast<float*>(ptr); }});
+  Register({.name = "double", .destructor = [](void* ptr) { delete static_cast<double*>(ptr); }});
+  Register({.name = "string", .destructor = [](void* ptr) { delete static_cast<std::string*>(ptr); }});
+}
 
 void Reflect::Register(const Prototype& prototype) {
   prototype_map_[prototype.name] = prototype;
@@ -161,17 +172,8 @@ bool Reflect::SetPrototypeOf(Any& any, const Prototype& prototype) {
   return true;
 }
 
-Reflect::Reflect() {
-  // register basic protos
-  Register({.name = "bool", .destructor = [](void* ptr) { delete static_cast<bool*>(ptr); }});
-  Register({.name = "int", .destructor = [](void* ptr) { delete static_cast<int*>(ptr); }});
-  Register({.name = "float", .destructor = [](void* ptr) { delete static_cast<float*>(ptr); }});
-  Register({.name = "double", .destructor = [](void* ptr) { delete static_cast<double*>(ptr); }});
-  Register({.name = "string", .destructor = [](void* ptr) { delete static_cast<std::string*>(ptr); }});
-}
-
 Reflect& GetReflect() {
-  static auto reflect = ReflectPtr(new Reflect);
+  static auto reflect = std::make_shared<Reflect>();
   return *reflect;
 }
 
@@ -184,6 +186,12 @@ std::string TypeOf(const Any& any) {
     return "function";
   }
   const auto& name = proto.name;
+  if (name == "bool") {
+    return "boolean";
+  }
+  if (name == "int64") {
+    return "bigint";
+  }
   if (name == "int" || name == "float" || name == "double") {
     return "number";
   }
